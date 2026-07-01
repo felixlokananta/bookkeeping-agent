@@ -21,6 +21,7 @@ export interface ColumnMap {
   debitCol: number | null;
   creditCol: number | null;
   descriptionCol: number;
+  memoCol: number | null;
 }
 
 export interface ColumnOverrides {
@@ -29,6 +30,7 @@ export interface ColumnOverrides {
   debit_column?: string;
   credit_column?: string;
   description_column?: string;
+  memo_column?: string;
 }
 
 const DATE_ALIASES = ['date', 'posted date', 'transaction date'];
@@ -36,6 +38,7 @@ const AMOUNT_ALIASES = ['amount'];
 const DEBIT_ALIASES = ['debit'];
 const CREDIT_ALIASES = ['credit'];
 const DESCRIPTION_ALIASES = ['description', 'payee', 'name', 'memo'];
+const MEMO_ALIASES = ['memo', 'notes'];
 
 /**
  * Split a single CSV line into fields, honoring quoted fields with embedded
@@ -133,6 +136,13 @@ export function detectColumns(header: string[], overrides?: ColumnOverrides): Co
     ? findColumnByName(header, overrides.description_column)
     : findColumn(header, DESCRIPTION_ALIASES);
 
+  const memoColCandidate = overrides?.memo_column
+    ? findColumnByName(header, overrides.memo_column)
+    : findColumn(header, MEMO_ALIASES);
+
+  // Set memoCol only if it differs from descriptionCol (avoid double-counting when both exist)
+  const memoCol = memoColCandidate !== null && memoColCandidate !== descriptionCol ? memoColCandidate : null;
+
   if (dateCol === null || descriptionCol === null || (amountCol === null && (debitCol === null || creditCol === null))) {
     throw new Error(
       `No recognizable columns in CSV header (${header.join(', ') || '(empty)'}). ` +
@@ -141,7 +151,7 @@ export function detectColumns(header: string[], overrides?: ColumnOverrides): Co
     );
   }
 
-  return { dateCol, amountCol, debitCol, creditCol, descriptionCol };
+  return { dateCol, amountCol, debitCol, creditCol, descriptionCol, memoCol };
 }
 
 /**
@@ -184,6 +194,31 @@ function isValidDateParts(year: number, month: number, day: number): boolean {
 }
 
 /**
+ * Parse a signed amount from a raw string, handling accounting-style
+ * parenthesized negatives: (123.45) → -123.45, ($1,234.56) → -1234.56.
+ * Strips $ and , characters, detects parentheses, and negates if present.
+ * Throws if the resulting numeric text is empty or non-finite.
+ */
+function parseSignedAmount(raw: string): number {
+  const trimmed = raw.trim();
+  const parenMatch = /^\((.*)\)$/.exec(trimmed);
+  const inner = parenMatch ? parenMatch[1] : trimmed;
+  const stripped = inner.replace(/[$,]/g, '');
+
+  if (!stripped) {
+    throw new Error('Non-numeric amount');
+  }
+
+  const value = Number(stripped);
+  if (!isFinite(value)) {
+    throw new Error('Non-numeric amount');
+  }
+
+  return parenMatch ? -value : value;
+}
+
+
+/**
  * Parse the signed amount (in minor units/cents) for a row, given resolved
  * column indices. Handles either a single signed `amount` column, or
  * separate `debit`/`credit` columns (credit - debit).
@@ -191,22 +226,36 @@ function isValidDateParts(year: number, month: number, day: number): boolean {
  */
 export function parseAmountCents(row: string[], cols: ColumnMap): number {
   if (cols.amountCol !== null) {
-    const raw = (row[cols.amountCol] ?? '').trim().replace(/[$,]/g, '');
-    const value = Number(raw);
-    if (!raw || !isFinite(value)) {
+    try {
+      const value = parseSignedAmount(row[cols.amountCol] ?? '');
+      return Math.round(value * 100);
+    } catch {
       throw new Error(`Non-numeric amount: ${row[cols.amountCol]}`);
     }
-    return Math.round(value * 100);
   }
 
   if (cols.debitCol !== null && cols.creditCol !== null) {
-    const rawDebit = (row[cols.debitCol] ?? '').trim().replace(/[$,]/g, '');
-    const rawCredit = (row[cols.creditCol] ?? '').trim().replace(/[$,]/g, '');
-    const debit = rawDebit ? Number(rawDebit) : 0;
-    const credit = rawCredit ? Number(rawCredit) : 0;
-    if ((rawDebit && !isFinite(debit)) || (rawCredit && !isFinite(credit))) {
-      throw new Error(`Non-numeric debit/credit: debit=${row[cols.debitCol]} credit=${row[cols.creditCol]}`);
+    let debit = 0;
+    let credit = 0;
+
+    const rawDebit = (row[cols.debitCol] ?? '').trim();
+    if (rawDebit) {
+      try {
+        debit = parseSignedAmount(rawDebit);
+      } catch {
+        throw new Error(`Non-numeric debit/credit: debit=${row[cols.debitCol]} credit=${row[cols.creditCol]}`);
+      }
     }
+
+    const rawCredit = (row[cols.creditCol] ?? '').trim();
+    if (rawCredit) {
+      try {
+        credit = parseSignedAmount(rawCredit);
+      } catch {
+        throw new Error(`Non-numeric debit/credit: debit=${row[cols.debitCol]} credit=${row[cols.creditCol]}`);
+      }
+    }
+
     return Math.round((credit - debit) * 100);
   }
 

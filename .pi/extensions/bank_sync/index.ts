@@ -128,6 +128,7 @@ export default function (pi: ExtensionAPI) {
       description_column: Type.Optional(
         Type.String({ description: 'Column header override for description/payee' })
       ),
+      memo_column: Type.Optional(Type.String({ description: 'Column header override for memo/notes' })),
       date_window_days: Type.Optional(
         Type.Number({ description: 'Dedup date window in days. Default: 3.' })
       ),
@@ -171,6 +172,7 @@ export default function (pi: ExtensionAPI) {
         debit_column: params.debit_column,
         credit_column: params.credit_column,
         description_column: params.description_column,
+        memo_column: params.memo_column,
       };
 
       // detectColumns throws for whole-file problems (no recognizable columns).
