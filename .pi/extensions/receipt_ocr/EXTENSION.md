@@ -30,10 +30,13 @@ Posts the operator-confirmed draft transaction as a balanced double-entry entry 
 - `memo` (string, optional): Free text, including any line items if extracted.
 - `confidence` (`'high'` | `'low'`): Agent's self-assessment of extraction quality.
 - `uncertain_fields` (string[], optional): List of fields (e.g. `['date', 'amount']`) the agent is unsure about (required if `confidence: 'low'`).
-- `force` (boolean, optional, default false): If true, override low-confidence block.
+- `force` (boolean, optional, default false): If true, override low-confidence block. Does **not** override a likely-duplicate block.
+- `force_duplicate` (boolean, optional, default false): If true, override a likely-duplicate block. Independent of `force` — confirming a low-confidence extraction does not also confirm it isn't a duplicate, so each gate needs its own explicit confirmation.
 - `approved` (boolean, optional, default false): Passthrough to ledger auto-post threshold gate (set true if amount exceeds threshold and operator approves).
 
-**Returns:** `{ transactionId, splitIds }` on success, or `{ lowConfidence: [...] }` if blocked (requires `force: true`).
+**Returns:** `{ transactionId, splitIds }` on success, `{ lowConfidence: [...] }` if blocked by low confidence (requires `force: true`), or `{ duplicate: { transactionId, date, description } }` if a likely duplicate is found (requires `force_duplicate: true`).
+
+**Duplicate detection.** Before posting, `capture_receipt` checks for a likely duplicate — an existing transaction on the same account with the exact same signed amount, within a ±3-day window, whose description fuzzy-matches the payee (reusing `findLikelyDuplicates` from `bank_sync`). This catches both the same receipt being captured twice and a receipt overlapping a transaction already imported from a bank CSV (or vice versa). A likely duplicate is always surfaced to the operator, never silently skipped or posted; re-call with `force_duplicate: true` only after the operator confirms it isn't a duplicate.
 
 ## Limitations
 

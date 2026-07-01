@@ -127,7 +127,15 @@ export default function (pi: ExtensionAPI) {
         Type.Boolean({
           description:
             'Set to true to override low-confidence block and force posting. ' +
-            'Only used if confidence: "low". Default: false.',
+            'Only used if confidence: "low". Default: false. ' +
+            'Does NOT override a likely-duplicate block — use force_duplicate for that.',
+        })
+      ),
+      force_duplicate: Type.Optional(
+        Type.Boolean({
+          description:
+            'Set to true to post despite a likely-duplicate match. Independent of `force`: ' +
+            'confirming a low-confidence extraction does not also confirm it is not a duplicate. Default: false.',
         })
       ),
       approved: Type.Optional(
@@ -145,6 +153,9 @@ export default function (pi: ExtensionAPI) {
       'If confidence: "low" and the operator does not confirm the uncertain values, do not call this tool.',
       'If confidence: "low", the post will be blocked and you will be instructed to re-call with force: true after ' +
         'operator confirmation.',
+      'Likely duplicates are blocked, not silently posted, even on a low-confidence receipt that was just ' +
+        'force-confirmed. If blocked, tell the user which existing transaction matched and re-call with ' +
+        'force_duplicate: true only if the user confirms it is not a duplicate.',
       'Amount sign matches log_transaction: negative = expense (out), positive = income (in).',
       'The offsetting account (Expenses:Uncategorized or Income:Uncategorized) is inferred automatically.',
     ],
@@ -162,6 +173,7 @@ export default function (pi: ExtensionAPI) {
         confidence: params.confidence,
         uncertainFields: params.uncertain_fields,
         force: params.force ?? false,
+        forceDuplicate: params.force_duplicate ?? false,
         approved: params.approved ?? false,
       });
 
@@ -172,6 +184,16 @@ export default function (pi: ExtensionAPI) {
           `Low-confidence extraction blocked. Uncertain fields: ${fields}. ` +
             `Please confirm with the user that these values are correct, then re-call ` +
             `with force: true to post anyway.`
+        );
+      }
+
+      // Duplicate block: throw with instructions
+      if ('duplicate' in result) {
+        const dup = result.duplicate;
+        throw new Error(
+          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}, ` +
+            `${dup.description ?? '(no description)'}). Re-call with force_duplicate: true if the user ` +
+            `confirms this is not a duplicate.`
         );
       }
 
