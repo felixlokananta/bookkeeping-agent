@@ -13,8 +13,8 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { openLedger, closeLedger, type Ledger } from '../bookkeeping/ledger.ts';
 import { toMinor } from '../bookkeeping/money.ts';
-import { postIngestedEntry } from './ingestion.ts';
-import { parseCsvText, detectColumns, parseDate, parseAmountCents, type ColumnOverrides } from './csv.ts';
+import { postIngestedEntry, importCsvRows } from './ingestion.ts';
+import { parseCsvText, detectColumns, type ColumnOverrides } from './csv.ts';
 
 let ledger: Ledger | null = null;
 
@@ -77,35 +77,32 @@ export default function (pi: ExtensionAPI) {
     ],
     execute: async (_toolCallId, params) => {
       if (!ledger) throw new Error('Ledger not initialized');
-      try {
-        const amountMinor = toMinor(params.amount);
-        const result = postIngestedEntry(ledger, {
-          date: params.date,
-          amountMinor,
-          account: params.account,
-          description: params.payee,
-          memo: params.memo,
-          force: params.force ?? false,
-          approved: params.approved ?? false,
-        });
 
-        if ('duplicate' in result) {
-          const dup = result.duplicate;
-          throw new Error(
-            `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}, ` +
-              `${dup.description ?? '(no description)'}). Re-call with force: true if the user ` +
-              `confirms this is not a duplicate.`
-          );
-        }
+      const amountMinor = toMinor(params.amount);
+      const result = postIngestedEntry(ledger, {
+        date: params.date,
+        amountMinor,
+        account: params.account,
+        description: params.payee,
+        memo: params.memo,
+        force: params.force ?? false,
+        approved: params.approved ?? false,
+      });
 
-        const text = `Logged transaction ${result.transactionId} on ${params.date}: ${params.payee}`;
-        return {
-          content: [{ type: 'text', text }],
-          details: { transactionId: result.transactionId, splitIds: result.splitIds },
-        };
-      } catch (err: any) {
-        throw new Error(err.message);
+      if ('duplicate' in result) {
+        const dup = result.duplicate;
+        throw new Error(
+          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}, ` +
+            `${dup.description ?? '(no description)'}). Re-call with force: true if the user ` +
+            `confirms this is not a duplicate.`
+        );
       }
+
+      const text = `Logged transaction ${result.transactionId} on ${params.date}: ${params.payee}`;
+      return {
+        content: [{ type: 'text', text }],
+        details: { transactionId: result.transactionId, splitIds: result.splitIds },
+      };
     },
   });
 
@@ -176,59 +173,20 @@ export default function (pi: ExtensionAPI) {
       // detectColumns throws for whole-file problems (no recognizable columns).
       const cols = detectColumns(header, overrides);
 
-      const imported: Array<{ row: number; transactionId: number }> = [];
-      const skipped_duplicates: Array<{ row: number; transactionId: number; date: string; description: string | null }> = [];
-      const errors: Array<{ row: number; reason: string }> = [];
-
-      rows.forEach((row, idx) => {
-        const rowNum = idx + 2; // account for header row + 1-indexing
-
-        let date: string;
-        let amountMinor: number;
-        try {
-          date = parseDate(row[cols.dateCol] ?? '');
-          amountMinor = parseAmountCents(row, cols);
-        } catch (err: any) {
-          errors.push({ row: rowNum, reason: err.message });
-          return;
-        }
-
-        const description = (row[cols.descriptionCol] ?? '').trim() || null;
-
-        try {
-          const result = postIngestedEntry(ledger!, {
-            date,
-            amountMinor,
-            account: params.account,
-            description,
-            force: params.force_duplicates ?? false,
-            approved: params.approved ?? false,
-            windowDays: params.date_window_days,
-          });
-
-          if ('duplicate' in result) {
-            const dup = result.duplicate;
-            skipped_duplicates.push({
-              row: rowNum,
-              transactionId: dup.transactionId,
-              date: dup.date,
-              description: dup.description,
-            });
-          } else {
-            imported.push({ row: rowNum, transactionId: result.transactionId });
-          }
-        } catch (err: any) {
-          errors.push({ row: rowNum, reason: err.message });
-        }
+      const { imported, skippedDuplicates, errors } = importCsvRows(ledger, rows, cols, {
+        account: params.account,
+        windowDays: params.date_window_days,
+        forceDuplicates: params.force_duplicates ?? false,
+        approved: params.approved ?? false,
       });
 
       const text_summary =
-        `Imported ${imported.length} row(s), skipped ${skipped_duplicates.length} likely duplicate(s), ` +
+        `Imported ${imported.length} row(s), skipped ${skippedDuplicates.length} likely duplicate(s), ` +
         `${errors.length} error(s) out of ${rows.length} row(s).`;
 
       return {
         content: [{ type: 'text', text: text_summary }],
-        details: { imported, skipped_duplicates, errors },
+        details: { imported, skipped_duplicates: skippedDuplicates, errors },
       };
     },
   });

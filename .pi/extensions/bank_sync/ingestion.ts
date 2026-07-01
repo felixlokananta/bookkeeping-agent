@@ -15,6 +15,7 @@ import {
   type Ledger,
 } from '../bookkeeping/ledger.ts';
 import { findLikelyDuplicates, type DuplicateMatch } from './dedupe.ts';
+import { parseDate, parseAmountCents, type ColumnMap } from './csv.ts';
 
 export type UncategorizedKind = 'expense' | 'income';
 
@@ -97,4 +98,83 @@ export function postIngestedEntry(
   });
 
   return result;
+}
+
+export interface ImportCsvRowsOptions {
+  account: string | number;
+  windowDays?: number;
+  forceDuplicates?: boolean;
+  approved?: boolean;
+}
+
+export interface ImportCsvRowsResult {
+  imported: Array<{ row: number; transactionId: number }>;
+  skippedDuplicates: Array<{ row: number; transactionId: number; date: string; description: string | null }>;
+  errors: Array<{ row: number; reason: string }>;
+}
+
+/**
+ * Parse and post every CSV data row, one call to postIngestedEntry per row.
+ * Row numbers are 1-indexed data rows plus the header row (row 2 = first
+ * data row). Never throws for row-level problems (bad date/amount, unknown
+ * account, imbalance, threshold-blocked, duplicate) — every failure is
+ * collected in `errors` or `skippedDuplicates` so the caller can report a
+ * complete per-row breakdown. Only file/header-level problems (thrown by
+ * `detectColumns` before this is called) should abort the whole import.
+ */
+export function importCsvRows(
+  ledger: Ledger,
+  rows: string[][],
+  cols: ColumnMap,
+  opts: ImportCsvRowsOptions
+): ImportCsvRowsResult {
+  const { account, windowDays, forceDuplicates, approved } = opts;
+
+  const imported: ImportCsvRowsResult['imported'] = [];
+  const skippedDuplicates: ImportCsvRowsResult['skippedDuplicates'] = [];
+  const errors: ImportCsvRowsResult['errors'] = [];
+
+  rows.forEach((row, idx) => {
+    const rowNum = idx + 2; // account for header row + 1-indexing
+
+    let date: string;
+    let amountMinor: number;
+    try {
+      date = parseDate(row[cols.dateCol] ?? '');
+      amountMinor = parseAmountCents(row, cols);
+    } catch (err: any) {
+      errors.push({ row: rowNum, reason: err.message });
+      return;
+    }
+
+    const description = (row[cols.descriptionCol] ?? '').trim() || null;
+
+    try {
+      const result = postIngestedEntry(ledger, {
+        date,
+        amountMinor,
+        account,
+        description,
+        force: forceDuplicates ?? false,
+        approved: approved ?? false,
+        windowDays,
+      });
+
+      if ('duplicate' in result) {
+        const dup = result.duplicate;
+        skippedDuplicates.push({
+          row: rowNum,
+          transactionId: dup.transactionId,
+          date: dup.date,
+          description: dup.description,
+        });
+      } else {
+        imported.push({ row: rowNum, transactionId: result.transactionId });
+      }
+    } catch (err: any) {
+      errors.push({ row: rowNum, reason: err.message });
+    }
+  });
+
+  return { imported, skippedDuplicates, errors };
 }

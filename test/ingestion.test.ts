@@ -19,7 +19,7 @@ import {
 } from '../.pi/extensions/bookkeeping/ledger.ts';
 import { toMinor } from '../.pi/extensions/bookkeeping/money.ts';
 import { findLikelyDuplicates } from '../.pi/extensions/bank_sync/dedupe.ts';
-import { ensureUncategorizedAccount, postIngestedEntry } from '../.pi/extensions/bank_sync/ingestion.ts';
+import { ensureUncategorizedAccount, postIngestedEntry, importCsvRows } from '../.pi/extensions/bank_sync/ingestion.ts';
 import {
   parseCsvText,
   detectColumns,
@@ -279,7 +279,11 @@ describe('bank_sync ingestion', () => {
     });
   });
 
-  describe('import_csv-style bulk processing (row-level errors, dedup, threshold)', () => {
+  // These exercise importCsvRows directly — the same helper index.ts's
+  // import_csv tool calls — so row-number math, override plumbing, and
+  // imported/skippedDuplicates/errors shaping are covered by the real
+  // adapter logic, not a hand-rolled re-implementation of it.
+  describe('importCsvRows (the row-loop behind import_csv)', () => {
     it('posts every row of a well-formed CSV as an uncategorized entry', () => {
       const text =
         'Date,Description,Amount\n' +
@@ -288,19 +292,16 @@ describe('bank_sync ingestion', () => {
       const { header, rows } = parseCsvText(text);
       const cols = detectColumns(header);
 
-      const results = rows.map((row) =>
-        postIngestedEntry(ledger, {
-          date: parseDate(row[cols.dateCol]),
-          amountMinor: parseAmountCents(row, cols),
-          account: 'Assets:Checking',
-          description: row[cols.descriptionCol],
-        })
-      );
-      assert.ok(results.every((r) => 'transactionId' in r));
+      const result = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+
+      assert.strictEqual(result.imported.length, 2);
+      assert.strictEqual(result.skippedDuplicates.length, 0);
+      assert.strictEqual(result.errors.length, 0);
+      assert.deepStrictEqual(result.imported.map((r) => r.row), [2, 3]);
       assert.strictEqual(listTransactions(ledger, { limit: 10 }).length, 2);
     });
 
-    it('reports a malformed row and continues processing remaining valid rows', () => {
+    it('reports a malformed row (correct 1-indexed row number) and continues processing remaining valid rows', () => {
       const text =
         'Date,Description,Amount\n' +
         '2024-06-01,Trader Joes,-55.20\n' +
@@ -309,27 +310,11 @@ describe('bank_sync ingestion', () => {
       const { header, rows } = parseCsvText(text);
       const cols = detectColumns(header);
 
-      const errors: Array<{ row: number; reason: string }> = [];
-      let posted = 0;
-      rows.forEach((row, idx) => {
-        try {
-          const date = parseDate(row[cols.dateCol]);
-          const amountMinor = parseAmountCents(row, cols);
-          postIngestedEntry(ledger, {
-            date,
-            amountMinor,
-            account: 'Assets:Checking',
-            description: row[cols.descriptionCol],
-          });
-          posted++;
-        } catch (err: any) {
-          errors.push({ row: idx + 2, reason: err.message });
-        }
-      });
+      const result = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
 
-      assert.strictEqual(posted, 2);
-      assert.strictEqual(errors.length, 1);
-      assert.strictEqual(errors[0].row, 3);
+      assert.strictEqual(result.imported.length, 2);
+      assert.strictEqual(result.errors.length, 1);
+      assert.strictEqual(result.errors[0].row, 3);
     });
 
     it('skips-and-reports duplicates on re-import; force_duplicates re-posts them', () => {
@@ -340,39 +325,26 @@ describe('bank_sync ingestion', () => {
       const { header, rows } = parseCsvText(text);
       const cols = detectColumns(header);
 
-      const firstRun = rows.map((row) =>
-        postIngestedEntry(ledger, {
-          date: parseDate(row[cols.dateCol]),
-          amountMinor: parseAmountCents(row, cols),
-          account: 'Assets:Checking',
-          description: row[cols.descriptionCol],
-        })
-      );
-      assert.ok(firstRun.every((r) => 'transactionId' in r));
+      const firstRun = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+      assert.strictEqual(firstRun.imported.length, 2);
 
-      // Re-run without force: every row should be a skipped duplicate.
-      const secondRun = rows.map((row) =>
-        postIngestedEntry(ledger, {
-          date: parseDate(row[cols.dateCol]),
-          amountMinor: parseAmountCents(row, cols),
-          account: 'Assets:Checking',
-          description: row[cols.descriptionCol],
-        })
+      // Re-run without force: every row should be a skipped duplicate,
+      // reported with the matched transaction id.
+      const secondRun = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+      assert.strictEqual(secondRun.imported.length, 0);
+      assert.strictEqual(secondRun.skippedDuplicates.length, 2);
+      assert.deepStrictEqual(
+        secondRun.skippedDuplicates.map((d) => d.transactionId).sort(),
+        firstRun.imported.map((r) => r.transactionId).sort()
       );
-      assert.ok(secondRun.every((r) => 'duplicate' in r));
       assert.strictEqual(listTransactions(ledger, { limit: 10 }).length, 2);
 
-      // Re-run with force: rows post again.
-      const thirdRun = rows.map((row) =>
-        postIngestedEntry(ledger, {
-          date: parseDate(row[cols.dateCol]),
-          amountMinor: parseAmountCents(row, cols),
-          account: 'Assets:Checking',
-          description: row[cols.descriptionCol],
-          force: true,
-        })
-      );
-      assert.ok(thirdRun.every((r) => 'transactionId' in r));
+      // Re-run with force_duplicates: rows post again.
+      const thirdRun = importCsvRows(ledger, rows, cols, {
+        account: 'Assets:Checking',
+        forceDuplicates: true,
+      });
+      assert.strictEqual(thirdRun.imported.length, 2);
       assert.strictEqual(listTransactions(ledger, { limit: 10 }).length, 4);
     });
 
@@ -385,26 +357,36 @@ describe('bank_sync ingestion', () => {
       const { header, rows } = parseCsvText(text);
       const cols = detectColumns(header);
 
-      const errors: Array<{ row: number; reason: string }> = [];
-      let posted = 0;
-      rows.forEach((row, idx) => {
-        try {
-          postIngestedEntry(ledger, {
-            date: parseDate(row[cols.dateCol]),
-            amountMinor: parseAmountCents(row, cols),
-            account: 'Assets:Checking',
-            description: row[cols.descriptionCol],
-          });
-          posted++;
-        } catch (err: any) {
-          errors.push({ row: idx + 2, reason: err.message });
-        }
+      const result = importCsvRows(ledger, rows, cols, {
+        account: 'Assets:Checking',
+        approved: false,
       });
 
-      assert.strictEqual(posted, 1);
-      assert.strictEqual(errors.length, 1);
-      assert.match(errors[0].reason, /exceeds auto-post limit/);
+      assert.strictEqual(result.imported.length, 1);
+      assert.strictEqual(result.errors.length, 1);
+      assert.match(result.errors[0].reason, /exceeds auto-post limit/);
       assert.strictEqual(listTransactions(ledger, { limit: 10 }).length, 1);
+    });
+
+    it('passes date_window_days through to duplicate detection', () => {
+      const text = 'Date,Description,Amount\n2024-06-01,Trader Joes,-55.20\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+
+      importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+
+      // Same amount/description 10 days later: outside a windowDays: 1 window,
+      // so it should NOT be treated as a duplicate.
+      const laterText = 'Date,Description,Amount\n2024-06-11,Trader Joes,-55.20\n';
+      const laterParsed = parseCsvText(laterText);
+      const laterCols = detectColumns(laterParsed.header);
+
+      const result = importCsvRows(ledger, laterParsed.rows, laterCols, {
+        account: 'Assets:Checking',
+        windowDays: 1,
+      });
+      assert.strictEqual(result.imported.length, 1);
+      assert.strictEqual(result.skippedDuplicates.length, 0);
     });
   });
 

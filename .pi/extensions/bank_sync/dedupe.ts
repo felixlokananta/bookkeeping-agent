@@ -89,6 +89,10 @@ export function findLikelyDuplicates(
   const startDate = formatIsoDateUtc(centerTs - windowDays * DAY_MS);
   const endDate = formatIsoDateUtc(centerTs + windowDays * DAY_MS);
 
+  // listTransactions defaults to limit: 100; a ± windowDays date range for a
+  // single account is expected to hold far fewer rows than this for a
+  // single-operator ledger, but the cap is raised well above the default so
+  // a busy account/day doesn't silently miss a duplicate match.
   const candidates = listTransactions(ledger, {
     account: acc.id,
     startDate,
