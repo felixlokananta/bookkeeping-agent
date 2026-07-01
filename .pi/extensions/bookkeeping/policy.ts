@@ -83,7 +83,9 @@ export function logAnomaly(entry: {
   magnitudeMinor?: number;
   limitMinor?: number;
 }): void {
-  const logPath = join(process.cwd(), 'memory', 'anomaly_log.json');
+  const logPath =
+    process.env.BOOKKEEPING_ANOMALY_LOG_PATH ||
+    join(process.cwd(), 'memory', 'anomaly_log.json');
   let log: unknown[] = [];
 
   try {
