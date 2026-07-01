@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { resizeImage } from '@earendil-works/pi-coding-agent/utils/image-resize.ts';
+import { resizeImage } from '@earendil-works/pi-coding-agent';
 import { postTransaction, type Ledger } from '../bookkeeping/ledger.ts';
 import { ensureUncategorizedAccount, type UncategorizedKind } from '../bank_sync/ingestion.ts';
 
