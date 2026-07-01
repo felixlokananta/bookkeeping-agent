@@ -1,0 +1,8 @@
+# Human-facing project settings
+# Machine-read pi harness config is in .pi/settings.json (not here)
+
+db_path: data/bookkeeping.db
+currency: USD
+model: |
+  The real pi model/harness config is set in .pi/settings.json.
+  This file is human-facing project metadata only.

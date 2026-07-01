@@ -1,0 +1,9 @@
+# Auto-post approval threshold and escalation rules
+# This is the single source of truth for the auto-post limit.
+
+auto_post_limit: 500.00  # major units (USD)
+currency: USD
+
+# Escalation notes (not yet implemented; future issues)
+# - Transactions above $500 require explicit approval
+# - Future: per-account limits, multi-tier approval, audit trail

@@ -1,0 +1,7 @@
+{
+  "name": "bookkeeping",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

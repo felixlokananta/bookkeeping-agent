@@ -1,0 +1,21 @@
+# Database files
+data/*.db
+*.db-wal
+*.db-shm
+
+# Node modules
+node_modules/
+
+# Session logs (keep the directory)
+memory/session_logs/*
+!memory/session_logs/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
