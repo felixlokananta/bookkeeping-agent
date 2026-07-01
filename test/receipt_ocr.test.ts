@@ -3,9 +3,10 @@
  * Tests capture.ts functions (loadReceiptImage, postReceiptEntry) against an in-memory ledger.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
-import { writeFileSync, unlinkSync } from 'node:fs';
+import { writeFileSync, unlinkSync, rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   openLedger,
@@ -19,6 +20,18 @@ import type { Ledger } from '../.pi/extensions/bookkeeping/ledger.ts';
 
 describe('Receipt OCR: image loading and posting', () => {
   let ledger: Ledger;
+  let tmpDir: string;
+
+  before(() => {
+    // Isolate anomaly-log writes from the real memory/anomaly_log.json
+    tmpDir = mkdtempSync(join(tmpdir(), 'receipt-ocr-test-'));
+    process.env.BOOKKEEPING_ANOMALY_LOG_PATH = join(tmpDir, 'anomaly_log.json');
+  });
+
+  after(() => {
+    delete process.env.BOOKKEEPING_ANOMALY_LOG_PATH;
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
 
   // Setup: open in-memory ledger before each test
   it('should set up in-memory ledger', () => {

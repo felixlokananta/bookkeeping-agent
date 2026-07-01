@@ -11,6 +11,10 @@ This project provides a complete accounting system with:
 - Append-only transaction history (no editing/deleting in v1)
 - Natural language interface through the `pi` agent
 
+**New to the agent?** See [INSTRUCTIONS.md](./INSTRUCTIONS.md) for scenario-based examples (logging
+an expense, importing a CSV, capturing a receipt, categorizing charges, pulling reports) showing
+what to type and what to expect back.
+
 ## Prerequisites
 
 - **Node.js 24+** (required for `node:sqlite` support)
@@ -450,6 +454,51 @@ apply_category {
 
 All three tools work post-hoc — only over already-posted transactions. Categorization does not edit amounts, dates, or descriptions; only the split's `account_id` is updated (exception to the append-only rule; see `AGENTS.md` hard rule 7).
 
+## Reporting and Tax Export (Issue #5)
+
+The `reporting` extension adds four read-only tools for financial analysis and tax compliance. None
+of them post or mutate the ledger.
+
+#### `spending_by_category`
+Hierarchical spending breakdown by expense category (or a custom root account) over a date range.
+
+**Example prompt:**
+```
+show spending by category for 2026 so far
+```
+
+#### `income_statement`
+Profit & loss for a date range: total income, total expenses, net income, and per-account breakdown.
+
+**Example prompt:**
+```
+show the income statement for June 2026
+```
+
+#### `balance_sheet`
+Assets/liabilities/equity as of a date. Retained earnings is computed on the fly from cumulative
+net income (the ledger has no closing entries) and the response verifies Assets = Liabilities +
+Equity.
+
+**Example prompt:**
+```
+show the balance sheet as of 2026-06-30
+```
+
+#### `tax_year_export`
+Exports income/expense splits for a tax year to a CSV file.
+
+**Example prompt:**
+```
+export tax data for 2025
+```
+
+**Behavior:**
+- Writes to `data/exports/tax-export-<year>.csv` by default, or an operator-supplied `outputPath`.
+- `outputPath` is resolved and constrained inside `data/exports/`; paths that would escape that
+  directory (e.g. via `..` segments or an absolute path elsewhere) are rejected.
+- Each row is a split with date, category (account name), description, and amount.
+
 ## Unit Tests
 
 Run the comprehensive test suite:
@@ -466,6 +515,10 @@ npm test
 - Auto-post threshold gate
 - Money conversion helpers
 - Policy loading and anomaly logging
+- Ingestion (manual entry, CSV import, duplicate detection)
+- Receipt/invoice capture and confidence gating
+- Categorization (rule learning, bulk apply, corrections)
+- Reporting (spending breakdown, income statement, balance sheet, tax export)
 
 All tests use an in-memory database (`:memory:`) for isolation and speed.
 
@@ -534,13 +587,22 @@ bookkeeping-agent/
 │       │   ├── index.ts                   # Pi extension adapter (list_uncategorized, suggest_category, apply_category)
 │       │   ├── categorize.ts              # Categorization core (list, suggest, apply, bulk)
 │       │   └── rules.ts                   # Rule schema, matching, load/save
+│       ├── reporting/                     # Issue #5: reporting and tax export
+│       │   ├── EXTENSION.md
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── index.ts                   # Pi extension adapter (spending_by_category, income_statement, balance_sheet, tax_year_export)
+│       │   ├── reports.ts                 # Reporting core (reads ledger, no mutation)
+│       │   └── csv.ts                     # CSV export core
 │       ├── reconciliation/EXTENSION.md    # Future skeleton
-│       ├── invoicing/EXTENSION.md         # Future skeleton
-│       └── reporting/EXTENSION.md         # Issue #5 skeleton
+│       └── invoicing/EXTENSION.md         # Future skeleton
 │
 └── test/
-    ├── ledger.test.ts                     # Node:test unit tests (33 tests, all passing)
-    └── ingestion.test.ts                  # Node:test unit tests for bank_sync
+    ├── ledger.test.ts                     # Node:test unit tests for the ledger core
+    ├── ingestion.test.ts                  # Node:test unit tests for bank_sync
+    ├── receipt_ocr.test.ts                # Node:test unit tests for receipt_ocr
+    ├── categorization.test.ts             # Node:test unit tests for categorization
+    └── reporting.test.ts                  # Node:test unit tests for reporting
 ```
 
 ## Architecture
@@ -596,10 +658,11 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - **Issue #2:** Ingestion (manual + CSV import) ✓
 - **Issue #3:** Receipt/invoice capture (image only, PDF unsupported in v1) ✓
 - **Issue #4:** Categorization (auto-categorize transactions using vendor rules) ✓
-- **Issue #5 (Reporting):** Generate financial statements and tax exports
+- **Issue #5:** Reporting (financial statements and tax export) ✓
 
 ## References
 
+- [INSTRUCTIONS.md](./INSTRUCTIONS.md) — Scenario-based examples of interacting with the agent
 - [AGENTS.md](./AGENTS.md) — Agent identity and hard rules
 - [BRAIN.md](./BRAIN.md) — Domain knowledge (chart of accounts, types, currency, file formats)
 - [workflows/setup_ledger.md](./workflows/setup_ledger.md) — Initialization workflow
@@ -607,6 +670,7 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - [.pi/extensions/bank_sync/EXTENSION.md](./.pi/extensions/bank_sync/EXTENSION.md) — Ingestion tool documentation
 - [.pi/extensions/receipt_ocr/EXTENSION.md](./.pi/extensions/receipt_ocr/EXTENSION.md) — Receipt capture tool documentation
 - [.pi/extensions/categorization/EXTENSION.md](./.pi/extensions/categorization/EXTENSION.md) — Categorization tool documentation
+- [.pi/extensions/reporting/EXTENSION.md](./.pi/extensions/reporting/EXTENSION.md) — Reporting tool documentation
 
 ## License
 

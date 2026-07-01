@@ -147,3 +147,21 @@ Agent: "Categorized 3 transactions to Expenses:Office Supplies. The payee rule i
 
 All three tools work post-hoc over already-posted transactions (rule 7 applies: in-place `account_id`
 update, no append-only violation).
+
+## Tools (Issue #5 — Reporting)
+
+The `reporting` extension adds four read-only tools for financial analysis and tax compliance. None
+of them post, mutate, or touch the ledger — they only read.
+
+- **`spending_by_category`** — Hierarchical expense breakdown (or a custom `rootAccount`) over a
+  date range. Returns a tree of categories with totals in natural balance.
+- **`income_statement`** — Profit & loss for a date range: total income, total expenses, net income,
+  plus per-account breakdown.
+- **`balance_sheet`** — Assets/liabilities/equity as of a date, with retained earnings computed on
+  the fly from cumulative net income (the ledger has no closing entries) and the accounting identity
+  (Assets = Liabilities + Equity) verified in the response.
+- **`tax_year_export`** — Writes a CSV of income/expense splits for a tax year to
+  `data/exports/tax-export-<year>.csv` (or an operator-supplied `outputPath`, which is resolved and
+  constrained inside `data/exports/` — paths escaping that directory are rejected).
+
+All four report over already-posted transactions and never invoke any of the write-path rules above.
