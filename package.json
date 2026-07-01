@@ -1,0 +1,16 @@
+{
+  "name": "bookkeeping-agent",
+  "version": "0.1.0",
+  "description": "SQLite-backed double-entry ledger for the bookkeeping agent",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "0.80.2",
+    "yaml": "2.4.5"
+  },
+  "scripts": {
+    "pi": "pi",
+    "agent": "bash scripts/run_agent.sh",
+    "test": "node --test test/"
+  }
+}
