@@ -395,6 +395,38 @@ describe('Ledger Core Tests', () => {
       // Should only include the first transaction (on 2024-01-15)
       assert.strictEqual(balance.rawMinor, 3000); // Only parent transaction
     });
+
+    it('should include children with no asOf filter', () => {
+      // Create child account (parent Expenses already exists in default chart)
+      createAccount(ledger, { name: 'Expenses:Food' });
+
+      // Post transaction to parent
+      postTransaction(ledger, {
+        date: '2024-01-15',
+        splits: [
+          { account: 'Expenses', amount: 3000 },
+          { account: 'Equity:Owner', amount: -3000 },
+        ],
+      });
+
+      // Post transaction to child
+      postTransaction(ledger, {
+        date: '2024-02-15',
+        splits: [
+          { account: 'Expenses:Food', amount: 2000 },
+          { account: 'Equity:Owner', amount: -2000 },
+        ],
+      });
+
+      // Call getBalance with includeChildren only, no asOf
+      const balance = getBalance(ledger, {
+        account: 'Expenses',
+        includeChildren: true,
+      });
+
+      // Should sum both parent and child transactions
+      assert.strictEqual(balance.rawMinor, 5000); // 3000 + 2000
+    });
   });
 
   describe('listTransactions', () => {
