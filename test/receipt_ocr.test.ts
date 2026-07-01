@@ -133,6 +133,8 @@ describe('Receipt OCR: image loading and posting', () => {
         confidence: 'high',
       });
 
+      assert.ok('transactionId' in result);
+
       const transactions = listTransactions(ledger, { limit: 100 });
       const posted = transactions.find((tx) => tx.id === result.transactionId);
       assert.ok(posted);
@@ -240,6 +242,9 @@ describe('Receipt OCR: image loading and posting', () => {
         sourcePath: 'test/fixtures/receipt.png',
         confidence: 'high',
       });
+
+      assert.ok('transactionId' in result1);
+      assert.ok('transactionId' in result2);
 
       const txns = listTransactions(ledger, { limit: 100 });
       const splits1 = txns.find((tx) => tx.id === result1.transactionId)?.splits || [];
