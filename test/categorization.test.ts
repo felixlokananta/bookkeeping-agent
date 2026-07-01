@@ -36,13 +36,15 @@ describe('Categorization Extension Tests', () => {
   let tmpDir: string;
 
   before(() => {
-    // Isolate vendor_rules.json writes from the real memory/vendor_rules.json
+    // Isolate vendor_rules.json and anomaly_log.json writes from the real memory/ files
     tmpDir = mkdtempSync(join(tmpdir(), 'categorization-test-'));
     process.env.BOOKKEEPING_VENDOR_RULES_PATH = join(tmpDir, 'vendor_rules.json');
+    process.env.BOOKKEEPING_ANOMALY_LOG_PATH = join(tmpDir, 'anomaly_log.json');
   });
 
   after(() => {
     delete process.env.BOOKKEEPING_VENDOR_RULES_PATH;
+    delete process.env.BOOKKEEPING_ANOMALY_LOG_PATH;
     rmSync(tmpDir, { recursive: true, force: true });
   });
 

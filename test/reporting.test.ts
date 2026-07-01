@@ -3,8 +3,11 @@
  * Run with: npm test
  */
 
-import { describe, it, beforeEach, afterEach } from 'node:test';
+import { describe, it, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
+import { rmSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   openLedger,
   closeLedger,
@@ -20,10 +23,22 @@ import {
   getDescendantAccountIds,
 } from '../.pi/extensions/reporting/reports.ts';
 import { toCsv } from '../.pi/extensions/reporting/csv.ts';
-import { formatBalanceSheet } from '../.pi/extensions/reporting/index.ts';
+import { formatBalanceSheet, resolveExportPath } from '../.pi/extensions/reporting/index.ts';
 
 describe('Reporting Extension Tests', () => {
   let ledger: Ledger;
+  let tmpDir: string;
+
+  before(() => {
+    // Isolate anomaly-log writes from the real memory/anomaly_log.json
+    tmpDir = mkdtempSync(join(tmpdir(), 'reporting-test-'));
+    process.env.BOOKKEEPING_ANOMALY_LOG_PATH = join(tmpDir, 'anomaly_log.json');
+  });
+
+  after(() => {
+    delete process.env.BOOKKEEPING_ANOMALY_LOG_PATH;
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
 
   beforeEach(() => {
     // Clean up env
@@ -699,6 +714,26 @@ describe('Reporting Extension Tests', () => {
       const result = taxYearExport(ledger, { year: 2025 });
 
       assert(Array.isArray(result));
+    });
+  });
+
+  describe('resolveExportPath', () => {
+    it('resolves a plain file name inside data/exports/', () => {
+      const path = resolveExportPath('tax-export-2025.csv', 'default.csv');
+      assert.ok(path.endsWith(`${join('data', 'exports', 'tax-export-2025.csv')}`));
+    });
+
+    it('falls back to the default name when none is given', () => {
+      const path = resolveExportPath(undefined, 'default.csv');
+      assert.ok(path.endsWith(`${join('data', 'exports', 'default.csv')}`));
+    });
+
+    it('rejects a path that escapes data/exports/ via ..', () => {
+      assert.throws(() => resolveExportPath('../../etc/passwd', 'default.csv'), /must resolve inside data\/exports/);
+    });
+
+    it('rejects an absolute path outside data/exports/', () => {
+      assert.throws(() => resolveExportPath('/etc/passwd', 'default.csv'), /must resolve inside data\/exports/);
     });
   });
 });

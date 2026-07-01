@@ -9,6 +9,15 @@ import { resolveAccount, getBalance, listTransactions, listAccounts } from '../b
 import { toMajor } from '../bookkeeping/money.ts';
 
 /**
+ * Convert a raw signed split amount (positive=debit, negative=credit) to natural
+ * balance for the given account: positive for debit-normal accounts (assets,
+ * expenses), negated for credit-normal accounts (liabilities, equity, income).
+ */
+function toNatural(account: Account, rawMinor: number): number {
+  return account.normal_balance === 'debit' ? rawMinor : -rawMinor;
+}
+
+/**
  * Recursively retrieve all descendant account IDs for a given account.
  * Unlike getBalance({ includeChildren: true }), which only sums direct children,
  * this walks the full ancestor tree to support arbitrary-depth drill-down.
@@ -83,10 +92,7 @@ export function spendingByCategory(
   const balances = new Map<number, number>();
   for (const row of rows) {
     const acc = resolveAccount(ledger, row.account_id);
-    // For debit-normal accounts (assets, expenses), natural balance = rawMinor
-    // For credit-normal accounts (liabilities, equity, income), natural balance = -rawMinor
-    const natural = acc.normal_balance === 'debit' ? row.total_amount : -row.total_amount;
-    balances.set(row.account_id, natural);
+    balances.set(row.account_id, toNatural(acc, row.total_amount));
   }
 
   // Build the tree structure recursively
@@ -136,7 +142,8 @@ export function spendingByCategory(
  * All amounts in natural balance (positive for income/expenses).
  */
 export interface IncomeStatementOpts {
-  startDate: string;
+  /** Omit for an open-ended lower bound (all transactions up to endDate). */
+  startDate?: string;
   endDate: string;
 }
 
@@ -159,27 +166,40 @@ export function incomeStatement(
   const incomeAccounts = allAccounts.filter((a) => a.type === 'income');
   const expenseAccounts = allAccounts.filter((a) => a.type === 'expense');
 
+  // Single grouped query for split totals across all income/expense accounts in range.
+  const relevantAccounts = [...incomeAccounts, ...expenseAccounts];
+  const rawTotals = new Map<number, number>();
+
+  if (relevantAccounts.length > 0) {
+    const sql = `
+      SELECT s.account_id, SUM(s.amount) as total_amount
+      FROM splits s
+      JOIN transactions t ON s.transaction_id = t.id
+      WHERE s.account_id IN (${relevantAccounts.map(() => '?').join(',')})
+        ${startDate ? 'AND t.date >= ?' : ''}
+        AND t.date <= ?
+      GROUP BY s.account_id
+    `;
+    const params = [
+      ...relevantAccounts.map((a) => a.id),
+      ...(startDate ? [startDate] : []),
+      endDate,
+    ];
+    const rows = ledger.db.prepare(sql).all(...params) as Array<{
+      account_id: number;
+      total_amount: number;
+    }>;
+    for (const row of rows) {
+      rawTotals.set(row.account_id, row.total_amount);
+    }
+  }
+
   // Sum splits for income accounts
   const incomeByAccount: Array<{ accountName: string; totalMinor: number }> = [];
   let incomeMinor = 0;
 
   for (const acc of incomeAccounts) {
-    const sql = `
-      SELECT SUM(s.amount) as total_amount
-      FROM splits s
-      JOIN transactions t ON s.transaction_id = t.id
-      WHERE s.account_id = ?
-        AND t.date >= ?
-        AND t.date <= ?
-    `;
-    const result = ledger.db.prepare(sql).get(acc.id, startDate, endDate) as
-      | { total_amount: number | null }
-      | undefined;
-
-    const rawMinor = result?.total_amount ?? 0;
-    // For debit-normal accounts (assets, expenses), natural balance = rawMinor
-    // For credit-normal accounts (liabilities, equity, income), natural balance = -rawMinor
-    const natural = acc.normal_balance === 'debit' ? rawMinor : -rawMinor;
+    const natural = toNatural(acc, rawTotals.get(acc.id) ?? 0);
     if (natural !== 0) {
       incomeByAccount.push({ accountName: acc.name, totalMinor: natural });
     }
@@ -191,22 +211,7 @@ export function incomeStatement(
   let expenseMinor = 0;
 
   for (const acc of expenseAccounts) {
-    const sql = `
-      SELECT SUM(s.amount) as total_amount
-      FROM splits s
-      JOIN transactions t ON s.transaction_id = t.id
-      WHERE s.account_id = ?
-        AND t.date >= ?
-        AND t.date <= ?
-    `;
-    const result = ledger.db.prepare(sql).get(acc.id, startDate, endDate) as
-      | { total_amount: number | null }
-      | undefined;
-
-    const rawMinor = result?.total_amount ?? 0;
-    // For debit-normal accounts (assets, expenses), natural balance = rawMinor
-    // For credit-normal accounts (liabilities, equity, income), natural balance = -rawMinor
-    const natural = acc.normal_balance === 'debit' ? rawMinor : -rawMinor;
+    const natural = toNatural(acc, rawTotals.get(acc.id) ?? 0);
     if (natural !== 0) {
       expenseByAccount.push({ accountName: acc.name, totalMinor: natural });
     }
@@ -290,8 +295,7 @@ export function balanceSheet(ledger: Ledger, opts: BalanceSheetOpts): BalanceShe
     }
 
     const rawMinor = getAccountBalance(acc.id);
-    // Adjust by normal balance direction
-    const natural = acc.normal_balance === 'debit' ? rawMinor : -rawMinor;
+    const natural = toNatural(acc, rawMinor);
 
     if (natural === 0) {
       continue;
@@ -311,11 +315,8 @@ export function balanceSheet(ledger: Ledger, opts: BalanceSheetOpts): BalanceShe
     }
   }
 
-  // Calculate retained earnings: cumulative net income to date
-  const incomeStatementAllTime = incomeStatement(ledger, {
-    startDate: '1900-01-01',
-    endDate: asOf,
-  });
+  // Calculate retained earnings: cumulative net income to date (no lower bound)
+  const incomeStatementAllTime = incomeStatement(ledger, { endDate: asOf });
   const retainedEarnings = incomeStatementAllTime.netIncomeMinor;
 
   // Total liabilities and equity = liabilities + equity + retained earnings

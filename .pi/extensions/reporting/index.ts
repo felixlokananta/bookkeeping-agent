@@ -22,7 +22,7 @@ import {
 } from './reports.ts';
 import { toCsv } from './csv.ts';
 import { mkdirSync, writeFileSync } from 'fs';
-import { dirname } from 'path';
+import { dirname, resolve, sep } from 'path';
 
 let ledger: Ledger | null = null;
 
@@ -37,6 +37,20 @@ interface BalanceSheetDetails extends BalanceSheetResult {}
 interface TaxYearExportDetails {
   filePath: string;
   rowCount: number;
+}
+
+/**
+ * Resolve a user-supplied outputPath/fileName inside data/exports/, rejecting
+ * any path that would escape that directory (e.g. via `..` segments or an
+ * absolute path elsewhere).
+ */
+export function resolveExportPath(fileName: string | undefined, defaultName: string): string {
+  const exportsDir = resolve(process.cwd(), 'data/exports');
+  const outputPath = resolve(exportsDir, fileName || defaultName);
+  if (outputPath !== exportsDir && !outputPath.startsWith(exportsDir + sep)) {
+    throw new Error(`Invalid outputPath: must resolve inside data/exports/ (got '${fileName}')`);
+  }
+  return outputPath;
 }
 
 export default function (pi: ExtensionAPI) {
@@ -193,7 +207,9 @@ export default function (pi: ExtensionAPI) {
       }),
       outputPath: Type.Optional(
         Type.String({
-          description: 'Output file path (default: data/exports/tax-export-<year>.csv)',
+          description:
+            'Output file name/relative path, resolved inside data/exports/ ' +
+            '(default: tax-export-<year>.csv). Paths escaping data/exports/ are rejected.',
         })
       ),
     }),
@@ -220,9 +236,11 @@ export default function (pi: ExtensionAPI) {
         ];
         const csv = toCsv(rows, columns);
 
-        // Determine output path
-        const outputPath =
-          params.outputPath || `data/exports/tax-export-${params.year}.csv`;
+        // Determine output path, constrained to the data/exports/ directory
+        const outputPath = resolveExportPath(
+          params.outputPath,
+          `tax-export-${params.year}.csv`
+        );
 
         // Ensure directory exists
         const dirPath = dirname(outputPath);
