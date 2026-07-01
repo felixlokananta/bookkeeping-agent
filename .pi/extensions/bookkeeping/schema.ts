@@ -53,6 +53,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   date TEXT NOT NULL,
   description TEXT,
+  source_path TEXT,
   created_at INTEGER NOT NULL
 );
 

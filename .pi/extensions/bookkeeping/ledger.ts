@@ -40,6 +40,7 @@ export interface Transaction {
   id: number;
   date: string;
   description: string | null;
+  source_path: string | null;
   created_at: number;
 }
 
@@ -240,10 +241,11 @@ export function postTransaction(
       amount: number; // integer minor units (signed: + = debit, - = credit)
       memo?: string;
     }>;
+    sourcePath?: string;
     approved?: boolean;
   }
 ): { transactionId: number; splitIds: number[] } {
-  const { date, description, splits, approved } = opts;
+  const { date, description, splits, sourcePath, approved } = opts;
 
   // Validation: at least 2 splits
   if (!splits || splits.length < 2) {
@@ -315,10 +317,10 @@ export function postTransaction(
 
     // Insert transaction header
     const txStmt = db.prepare(
-      `INSERT INTO transactions (date, description, created_at)
-       VALUES (?, ?, ?)`
+      `INSERT INTO transactions (date, description, source_path, created_at)
+       VALUES (?, ?, ?, ?)`
     );
-    const txResult = txStmt.run(date, description || null, Date.now());
+    const txResult = txStmt.run(date, description || null, sourcePath || null, Date.now());
     transactionId = txResult.lastInsertRowid as number;
 
     // Insert splits
@@ -452,7 +454,7 @@ export function listTransactions(
   const { account: accountRef, startDate, endDate, limit = 100 } = opts || {};
 
   let sql = `
-    SELECT DISTINCT t.id, t.date, t.description, t.created_at
+    SELECT DISTINCT t.id, t.date, t.description, t.source_path, t.created_at
     FROM transactions t
   `;
   const params: (string | number)[] = [];
