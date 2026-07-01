@@ -30,7 +30,7 @@ This project provides a complete accounting system with:
 
 ### Start the Agent
 
-**Preferred:** run via `scripts/run_agent.sh` (or `npm run agent`), which passes `--no-builtin-tools` so only the 5 ledger tools are exposed:
+**Preferred:** run via `scripts/run_agent.sh` (or `npm run agent`), which passes `--no-builtin-tools` so only the core ledger and ingestion tools are exposed:
 
 ```bash
 npm run agent        # bash scripts/run_agent.sh
@@ -304,6 +304,68 @@ Imported 18 row(s), skipped 2 likely duplicate(s), 1 error(s) out of 21 row(s).
 **Re-importing the same file:** every previously-imported row is now a likely duplicate and is
 reported in `skipped_duplicates` instead of being posted again.
 
+## Receipt and Invoice Capture (Issue #3)
+
+The `receipt_ocr` extension adds two tools for capturing receipts and invoices via image upload:
+`read_receipt` (load and extract) and `capture_receipt` (confirm and post).
+
+#### `read_receipt`
+Load a receipt or invoice image from disk for the LLM to read and extract transaction data.
+
+**Supported formats:** PNG, JPG, JPEG, GIF, WebP. PDF is not yet supported; ask the operator to
+convert to an image first.
+
+**Example prompt:**
+```
+read the receipt at data/inbox/receipt_20260701.jpg
+```
+
+**Behavior:**
+The agent calls `read_receipt` to load the image, then states the extracted date, total amount,
+vendor/payee, and line items (if visible) in chat for operator confirmation. Never guess receipt
+contents from the filename alone.
+
+#### `capture_receipt`
+Post the operator-confirmed extraction as a balanced double-entry transaction.
+
+**Example prompt (after read_receipt):**
+```
+the receipt looks correct — post it:
+- date: 2026-07-01
+- amount: -45.99 (that's a $45.99 expense)
+- payee: Trader Joe's
+- from Assets:Checking
+- confidence: high
+```
+
+**Behavior:**
+- Posts against the source account and an auto-created `Expenses:Uncategorized` (for expenses) or
+  `Income:Uncategorized` (for income) account, same as `log_transaction`.
+- Stores the original receipt file path in the transaction's `source_path` column (audit trail).
+- Requires agent self-assessment of extraction confidence: `confidence: 'high'` or `confidence:
+  'low'`. Low-confidence posts are blocked unless called with `force: true` after operator
+  confirmation (see `AGENTS.md` hard rule 6).
+- Inherits the auto-post threshold gate from `post_transaction`; exceeding the limit requires
+  `approved: true`.
+
+**Confidence gate example:**
+If the image is blurry or a field is missing, the agent sets `confidence: 'low'` and lists
+`uncertain_fields: ['amount', 'payee']`. The tool blocks the post:
+```
+Low-confidence extraction blocked. Uncertain fields: amount, payee. Please confirm with the
+user that these values are correct, then re-call with force: true to post anyway.
+```
+
+After operator confirmation, re-call:
+```
+the operator confirms: amount is $45.99, payee is Trader Joe's. re-call with force: true.
+```
+
+**Source files:** Receipt images are read from wherever the operator points (e.g.,
+`data/inbox/`, an external drive, a temp folder). The tool does not move or copy files; the
+path is stored as given. Moving confirmed receipts into `data/processed/` is a possible follow-up
+(not required by v1).
+
 ## Unit Tests
 
 Run the comprehensive test suite:
@@ -312,7 +374,7 @@ Run the comprehensive test suite:
 npm test
 ```
 
-**Output:** 33 tests covering:
+**Output:** Tests covering:
 - Ledger initialization and seed chart
 - Account creation and hierarchy
 - Transaction posting and validation
@@ -375,7 +437,12 @@ bookkeeping-agent/
 │       │   ├── ingestion.ts               # Uncategorized-account posting core
 │       │   ├── dedupe.ts                  # Duplicate detection core
 │       │   └── csv.ts                     # CSV parsing core
-│       ├── receipt_ocr/EXTENSION.md       # Issue #3 skeleton
+│       ├── receipt_ocr/                   # Issue #3: receipt/invoice capture (image only, no PDF)
+│       │   ├── EXTENSION.md
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── index.ts                   # Pi extension adapter (read_receipt, capture_receipt)
+│       │   └── capture.ts                 # Receipt loading + posting core
 │       ├── categorization/EXTENSION.md    # Issue #4 skeleton
 │       ├── reconciliation/EXTENSION.md    # Future skeleton
 │       ├── invoicing/EXTENSION.md         # Future skeleton
@@ -433,18 +500,22 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 
 6. **Single-currency v1** — major/minor unit conversion is simple. Multi-currency and FX are out of scope.
 
-## Future Issues
+## Completed and Upcoming Issues
 
-- **Issue #3 (Receipt OCR):** Extract transaction data from receipts/invoices
+- **Issue #1:** Ledger core + 5 ledger tools ✓
+- **Issue #2:** Ingestion (manual + CSV import) ✓
+- **Issue #3:** Receipt/invoice capture (image only, PDF unsupported in v1) ✓
 - **Issue #4 (Categorization):** Auto-categorize transactions using vendor rules
 - **Issue #5 (Reporting):** Generate financial statements and tax exports
 
 ## References
 
 - [AGENTS.md](./AGENTS.md) — Agent identity and hard rules
-- [BRAIN.md](./BRAIN.md) — Domain knowledge (chart of accounts, types, currency)
+- [BRAIN.md](./BRAIN.md) — Domain knowledge (chart of accounts, types, currency, file formats)
 - [workflows/setup_ledger.md](./workflows/setup_ledger.md) — Initialization workflow
-- [.pi/extensions/bookkeeping/EXTENSION.md](./.pi/extensions/bookkeeping/EXTENSION.md) — Tool documentation
+- [.pi/extensions/bookkeeping/EXTENSION.md](./.pi/extensions/bookkeeping/EXTENSION.md) — Ledger tool documentation
+- [.pi/extensions/bank_sync/EXTENSION.md](./.pi/extensions/bank_sync/EXTENSION.md) — Ingestion tool documentation
+- [.pi/extensions/receipt_ocr/EXTENSION.md](./.pi/extensions/receipt_ocr/EXTENSION.md) — Receipt capture tool documentation
 
 ## License
 

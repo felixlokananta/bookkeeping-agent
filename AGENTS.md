@@ -33,6 +33,13 @@ Precise, terse, numeric responses. Always cite account paths and amounts exactly
    operator — never dropped without a trace, and never posted without either passing the dedup
    check or an explicit `force`/`force_duplicates` override.
 
+6. **Low-confidence receipt extractions must be surfaced, never silently posted.**  
+   `capture_receipt` blocks (throws, naming uncertain fields) on a low-confidence extraction unless
+   called with `force: true`. After the operator confirms the uncertain values in chat, re-call
+   with `force: true` to post. A low-confidence extraction must always be visible to the operator
+   — never dropped without a trace, and never posted without either operator confirmation or an
+   explicit `force` override.
+
 ## Tools (Issue #1)
 
 The agent has five core ledger tools:
@@ -59,3 +66,21 @@ The `bank_sync` extension adds two ingestion tools on top of the ledger:
 
 Both tools inherit the auto-post threshold gate and anomaly logging from `post_transaction`
 unchanged (rule 1); a blocked row is surfaced as an error, not retried automatically.
+
+## Tools (Issue #3 — Receipt Capture)
+
+The `receipt_ocr` extension adds two receipt/invoice capture tools:
+
+- **`read_receipt`** — Load a receipt or invoice image from disk (PNG, JPG, GIF, WebP only; PDF
+  not yet supported) and return it as vision content for the LLM to read and extract a draft
+  transaction. The agent states the extracted date, total amount, vendor/payee, and line items
+  (if visible) in chat for operator confirmation before posting. Never guess receipt contents
+  from the filename alone.
+- **`capture_receipt`** — Post the operator-confirmed extraction as a balanced double-entry
+  transaction against the source account and an auto-created `Expenses:Uncategorized` /
+  `Income:Uncategorized` account (same offsetting-account convention as `log_transaction`).
+  Stores the original file path in the transaction's `source_path` column. Requires agent
+  self-assessment of extraction quality (confidence: 'high' | 'low'); low-confidence posts are
+  blocked unless re-called with `force: true` after operator confirmation (rule 6 above).
+
+Both tools inherit the auto-post threshold gate from `post_transaction` unchanged (rule 1).
