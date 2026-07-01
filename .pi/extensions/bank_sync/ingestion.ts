@@ -235,6 +235,7 @@ export function importCsvRows(
     }
 
     const description = (row[cols.descriptionCol] ?? '').trim() || null;
+    const memo = cols.memoCol !== null ? (row[cols.memoCol] ?? '').trim() || undefined : undefined;
 
     try {
       const result = postIngestedEntry(ledger, {
@@ -242,6 +243,7 @@ export function importCsvRows(
         amountMinor,
         account,
         description,
+        memo,
         force: forceDuplicates ?? false,
         approved: approved ?? false,
         windowDays,

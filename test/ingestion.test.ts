@@ -296,6 +296,60 @@ describe('bank_sync ingestion', () => {
       const { rows } = parseCsvText(text);
       assert.strictEqual(rows[0][1], "Trader Joe's, Seattle #123");
     });
+
+    it('parseAmountCents parses single-amount column with parenthesized negatives (45.00)', () => {
+      const text = 'Date,Description,Amount\n2024-06-01,Test,(45.00)\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+      assert.strictEqual(parseAmountCents(rows[0], cols), -4500);
+    });
+
+    it('parseAmountCents parses single-amount column with parenthesized negatives ($1,234.56)', () => {
+      const text = 'Date,Description,Amount\n2024-06-01,Test,"($1,234.56)"\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+      assert.strictEqual(parseAmountCents(rows[0], cols), -123456);
+    });
+
+    it('parseAmountCents on debit/credit columns with parenthesized debit (55.20)', () => {
+      const text = 'Date,Description,Debit,Credit\n2024-06-01,Test,(55.20),\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+      // Parentheses in debit/credit are stripped (not negated); formula credit - debit = 0 - 55.20 = -55.20
+      assert.strictEqual(parseAmountCents(rows[0], cols), -5520);
+    });
+
+    it('throws "Non-numeric amount" for non-numeric, non-parenthesized values (regression check)', () => {
+      const text = 'Date,Description,Amount\n2024-06-01,Test,abc\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+      assert.throws(() => parseAmountCents(rows[0], cols), /Non-numeric amount/);
+    });
+
+    it('detectColumns resolves separate Description and Memo columns correctly', () => {
+      const text = 'Date,Description,Memo,Amount\n2024-06-01,Payee text,Memo text,100\n';
+      const { header } = parseCsvText(text);
+      const cols = detectColumns(header);
+      assert.strictEqual(cols.descriptionCol, 1); // Description column
+      assert.strictEqual(cols.memoCol, 2); // Memo column (separate)
+      assert.notStrictEqual(cols.memoCol, cols.descriptionCol);
+    });
+
+    it('detectColumns with only Memo column (no Description) uses Memo as description, memoCol is null', () => {
+      const text = 'Date,Memo,Amount\n2024-06-01,Memo text,100\n';
+      const { header } = parseCsvText(text);
+      const cols = detectColumns(header);
+      assert.strictEqual(cols.descriptionCol, 1); // Memo is used as description
+      assert.strictEqual(cols.memoCol, null); // No separate memo column (no double-count)
+    });
+
+    it('detectColumns respects memo_column override', () => {
+      const text = 'Date,Description,CustomMemo,Amount\n2024-06-01,Payee,Memo text,100\n';
+      const { header } = parseCsvText(text);
+      const cols = detectColumns(header, { memo_column: 'CustomMemo' });
+      assert.strictEqual(cols.descriptionCol, 1);
+      assert.strictEqual(cols.memoCol, 2); // Resolved via override
+    });
   });
 
   // These exercise importCsvRows directly — the same helper index.ts's
@@ -406,6 +460,63 @@ describe('bank_sync ingestion', () => {
       });
       assert.strictEqual(result.imported.length, 1);
       assert.strictEqual(result.skippedDuplicates.length, 0);
+    });
+
+    it('CSV with Description and Memo columns posts transaction with split memo matching Memo column', () => {
+      const text =
+        'Date,Description,Memo,Amount\n' +
+        '2024-06-01,Trader Joes,Store #456,-55.20\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+
+      const result = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+
+      assert.strictEqual(result.imported.length, 1);
+      assert.strictEqual(result.errors.length, 0);
+
+      // Verify the transaction's splits include the memo
+      const txns = listTransactions(ledger, { limit: 10 });
+      assert.strictEqual(txns.length, 1);
+      const splits = txns[0].splits;
+      const checkingSplit = splits.find((s) => s.account_id === resolveAccount(ledger, 'Assets:Checking').id)!;
+      assert.strictEqual(checkingSplit.memo, 'Store #456');
+    });
+
+    it('memo participates in vendor-rule matching via payee+memo join', () => {
+      // Set up a high-confidence rule keyed on payee+memo text
+      // "Trader Joes" + "Store" combined normalizes to "trader joes store"
+      let rules = loadRules();
+      // Insert a rule that matches the combined payee+memo
+      rules = upsertRule(rules, 'trader joes store', 'Expenses:Groceries');
+      rules = upsertRule(rules, 'trader joes store', 'Expenses:Groceries'); // high confidence
+      saveRules(rules);
+
+      const text =
+        'Date,Description,Memo,Amount\n' +
+        '2024-06-01,Trader Joes,Store #456,-55.20\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+
+      const result = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+
+      assert.strictEqual(result.imported.length, 1);
+      assert.strictEqual(result.errors.length, 0);
+
+      // Verify the transaction posted to Expenses:Groceries (matched rule), not Uncategorized
+      const groceriesAccount = resolveAccount(ledger, 'Expenses:Groceries');
+      const txns = listTransactions(ledger, { limit: 10 });
+      assert.strictEqual(txns.length, 1);
+      const splits = txns[0].splits;
+      const groceriesSplit = splits.find((s) => s.account_id === groceriesAccount.id)!;
+      assert.ok(groceriesSplit, 'Should have posted to Expenses:Groceries via payee+memo rule match');
+
+      // Uncategorized account should NOT have been created
+      try {
+        resolveAccount(ledger, 'Expenses:Uncategorized');
+        assert.fail('Expenses:Uncategorized should not have been created');
+      } catch {
+        // Expected: account doesn't exist
+      }
     });
   });
 
