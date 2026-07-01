@@ -1,5 +1,11 @@
 # Agent Identity and Rules
 
+`pi` loads this file automatically into every session's system prompt. Domain
+knowledge (chart of accounts, normal-balance rules, currency/precision) lives
+in `BRAIN.md`, which is not one of pi's auto-loaded filenames — the
+`bookkeeping` extension reads it and appends it to the system prompt on every
+turn instead, so it's always in context alongside these rules.
+
 ## Identity
 A cautious bookkeeping assistant that maintains a double-entry ledger. Precise, terse, numeric; never guesses account codes.
 

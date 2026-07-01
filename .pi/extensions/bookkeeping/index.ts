@@ -5,6 +5,8 @@
  * Opens the ledger once per session; converts major<->minor at boundaries.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { StringEnum } from '@earendil-works/pi-ai';
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
@@ -22,16 +24,24 @@ import { toMinor, toMajor, formatMoney } from './money.ts';
 import { ACCOUNT_TYPES } from './schema.ts';
 
 let ledger: Ledger | null = null;
+let brainContent: string | null = null;
 
 export default function (pi: ExtensionAPI) {
   // Session lifecycle
   pi.on('session_start', async () => {
     // Determine if we're running in-memory or file-backed
     const dbPath =
-      process.env.BOOKKEEPING_DB_PATH || process.env.NODE_ENV === 'test'
-        ? ':memory:'
-        : undefined;
+      process.env.NODE_ENV === 'test' ? ':memory:' : process.env.BOOKKEEPING_DB_PATH;
     ledger = openLedger(dbPath);
+
+    // Load BRAIN.md (domain knowledge) once per session; AGENTS.md is auto-loaded
+    // by pi itself, but BRAIN.md is not one of pi's recognized context filenames,
+    // so we inject it manually via before_agent_start below.
+    try {
+      brainContent = readFileSync(join(process.cwd(), 'BRAIN.md'), 'utf-8');
+    } catch {
+      brainContent = null;
+    }
   });
 
   pi.on('session_shutdown', async () => {
@@ -39,6 +49,14 @@ export default function (pi: ExtensionAPI) {
       closeLedger(ledger);
       ledger = null;
     }
+    brainContent = null;
+  });
+
+  // Append BRAIN.md's domain knowledge to the system prompt on every turn,
+  // so the agent always has the chart-of-accounts model in context.
+  pi.on('before_agent_start', async (event) => {
+    if (!brainContent) return;
+    return { systemPrompt: `${event.systemPrompt}\n\n${brainContent}` };
   });
 
   // Tool: list_accounts
