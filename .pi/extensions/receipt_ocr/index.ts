@@ -33,38 +33,47 @@ export default function (pi: ExtensionAPI) {
     name: 'read_receipt',
     label: 'Read Receipt',
     description:
-      'Load a receipt or invoice image from disk and return it as vision content for LLM extraction.',
+      'Load a receipt or invoice image (or PDF) from disk and return it as vision content for LLM extraction.',
     parameters: Type.Object({
       path: Type.String({
         description:
-          'Path to the receipt image file (e.g. "data/inbox/receipt1.jpg"), resolved from cwd. ' +
-          'Supported formats: PNG, JPG, JPEG, GIF, WebP. PDF not yet supported.',
+          'Path to the receipt image or PDF file (e.g. "data/inbox/receipt1.jpg" or "data/inbox/receipt.pdf"), resolved from cwd. ' +
+          'Supported formats: PNG, JPG, JPEG, GIF, WebP, PDF (first page only).',
       }),
     }),
-    promptSnippet: '`read_receipt` — load a receipt image for extraction',
+    promptSnippet: '`read_receipt` — load a receipt image or PDF for extraction',
     promptGuidelines: [
       'Always call `read_receipt` before `capture_receipt`; never guess receipt contents from the filename alone.',
       'After reading the image, state the extracted date, total amount, vendor/payee, and any line items in chat.',
       'Get operator confirmation on all extracted fields before calling `capture_receipt`.',
-      '.pdf files are not supported yet; ask the operator to provide an image export (PNG, JPG, etc.) instead.',
+      'For multi-page PDFs, only the first page is extracted; note this in your response if the PDF has multiple pages.',
     ],
     execute: async (_toolCallId, params) => {
       if (!ledger) throw new Error('Ledger not initialized');
 
       try {
-        const { data, mimeType } = await loadReceiptImage(params.path);
+        const { data, mimeType, pageCount } = await loadReceiptImage(params.path);
+
+        let extractionPrompt =
+          'Extract the following from the receipt:\n' +
+          '1. Date (YYYY-MM-DD format)\n' +
+          '2. Total amount (include currency sign and decimal places)\n' +
+          '3. Vendor/payee name\n' +
+          '4. Line items (if visible) with amounts\n' +
+          'State your findings and note any fields you are unsure about (blurry, missing, etc.).';
+
+        // Add note if PDF has multiple pages
+        if (pageCount && pageCount > 1) {
+          extractionPrompt +=
+            `\n\nNote: This PDF has ${pageCount} pages total, but only the first page has been extracted for analysis.`;
+        }
 
         return {
           content: [
             { type: 'image', data, mimeType },
             {
               type: 'text',
-              text: 'Extract the following from the receipt:\n' +
-                '1. Date (YYYY-MM-DD format)\n' +
-                '2. Total amount (include currency sign and decimal places)\n' +
-                '3. Vendor/payee name\n' +
-                '4. Line items (if visible) with amounts\n' +
-                'State your findings and note any fields you are unsure about (blurry, missing, etc.).',
+              text: extractionPrompt,
             },
           ],
           details: { path: params.path },

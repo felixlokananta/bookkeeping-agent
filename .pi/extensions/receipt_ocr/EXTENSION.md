@@ -16,7 +16,7 @@ Loads a receipt/invoice image file from disk, resizes it to reasonable bounds us
 
 **Returns:** Image content + extraction prompt for the LLM.
 
-**Supported formats:** PNG, JPG, JPEG, GIF, WebP only. `.pdf` and other formats are rejected with a clear "convert to image first" error.
+**Supported formats:** PNG, JPG, JPEG, GIF, WebP, and PDF (first page only). Multi-page PDFs are supported; only the first page is extracted for analysis. Other formats are rejected with a clear error.
 
 #### `capture_receipt`
 Posts the operator-confirmed draft transaction as a balanced double-entry entry against `Expenses:Uncategorized` (for expenses) or `Income:Uncategorized` (for income), storing the original file path in the transaction's `source_path` column.
@@ -37,7 +37,7 @@ Posts the operator-confirmed draft transaction as a balanced double-entry entry 
 
 ## Limitations
 
-- **Image only, no PDF.** The pi tool-result content model only supports text and image content types, not documents. V1 supports image files only (PNG/JPG/GIF/WebP); `.pdf` inputs are rejected with a clear "convert to image first" error. Full PDF support (rasterization) is deferred to a later issue.
+- **PDF first page only.** Multi-page PDFs are supported via rasterization using `pdf-to-img`; only the first page is extracted for analysis. If more detailed analysis of subsequent pages is needed, the operator must manually split the PDF and re-upload individual pages.
 
 - **Structured line items not modeled.** Line items are extracted where visible and included as free text in the split `memo` or transaction `description`; a dedicated line-items table is deferred.
 

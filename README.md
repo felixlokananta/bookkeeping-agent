@@ -322,10 +322,10 @@ The `receipt_ocr` extension adds two tools for capturing receipts and invoices v
 `read_receipt` (load and extract) and `capture_receipt` (confirm and post).
 
 #### `read_receipt`
-Load a receipt or invoice image from disk for the LLM to read and extract transaction data.
+Load a receipt or invoice image (or PDF) from disk for the LLM to read and extract transaction data.
 
-**Supported formats:** PNG, JPG, JPEG, GIF, WebP. PDF is not yet supported; ask the operator to
-convert to an image first.
+**Supported formats:** PNG, JPG, JPEG, GIF, WebP, and PDF (first page only). Multi-page PDFs are
+supported; only the first page is extracted for analysis.
 
 **Example prompt:**
 ```
@@ -582,7 +582,7 @@ bookkeeping-agent/
 │       │   ├── ingestion.ts               # Uncategorized-account posting core
 │       │   ├── dedupe.ts                  # Duplicate detection core
 │       │   └── csv.ts                     # CSV parsing core
-│       ├── receipt_ocr/                   # Issue #3: receipt/invoice capture (image only, no PDF)
+│       ├── receipt_ocr/                   # Issue #3: receipt/invoice capture; Issue #12: PDF support
 │       │   ├── EXTENSION.md
 │       │   ├── package.json
 │       │   ├── tsconfig.json
@@ -664,10 +664,11 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 
 - **Issue #1:** Ledger core + 5 ledger tools ✓
 - **Issue #2:** Ingestion (manual + CSV import) ✓
-- **Issue #3:** Receipt/invoice capture (image only, PDF unsupported in v1) ✓
+- **Issue #3:** Receipt/invoice capture (image support) ✓
 - **Issue #4:** Categorization (auto-categorize transactions using vendor rules) ✓
 - **Issue #5:** Reporting (financial statements and tax export) ✓
-- **Issue #11:** Auto-categorize transactions at ingestion time (deferred follow-up) ✓
+- **Issue #11:** Auto-categorize transactions at ingestion time ✓
+- **Issue #12:** PDF support in receipt_ocr (first page only via rasterization) ✓
 
 ## References
 

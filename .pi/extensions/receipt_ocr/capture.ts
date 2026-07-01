@@ -8,6 +8,7 @@
 import { readFileSync } from 'fs';
 import { resolve, extname } from 'path';
 import { resizeImage } from '@earendil-works/pi-coding-agent';
+import { pdf } from 'pdf-to-img';
 import { postTransaction, type Ledger } from '../bookkeeping/ledger.ts';
 import { ensureUncategorizedAccount, type UncategorizedKind } from '../bank_sync/ingestion.ts';
 
@@ -23,33 +24,57 @@ const SUPPORTED_EXTENSIONS: Record<string, string> = {
 };
 
 /**
+ * Rasterize a PDF file to a PNG image buffer.
+ * Extracts the first page and returns the PNG buffer + total page count.
+ * Throws a clear error for corrupted/password-protected PDFs.
+ */
+async function rasterizePdf(
+  fileBuffer: Buffer
+): Promise<{ pngBuffer: Buffer; pageCount: number }> {
+  // pdf() from pdf-to-img returns an async iterable with a length property.
+  // Its docs require calling destroy() to free the underlying pdfjs document.
+  let document: Awaited<ReturnType<typeof pdf>> | undefined;
+  try {
+    document = await pdf(fileBuffer);
+
+    if (!document || document.length === 0) {
+      throw new Error('PDF has no extractable pages');
+    }
+
+    // Get page 1 (1-indexed) as a PNG Buffer
+    const pngBuffer = await document.getPage(1);
+
+    if (!pngBuffer) {
+      throw new Error('Failed to extract first page');
+    }
+
+    const pageCount = document.length;
+
+    return { pngBuffer, pageCount };
+  } catch (err: any) {
+    throw new Error(`Failed to rasterize PDF: ${err.message}`);
+  } finally {
+    await document?.destroy();
+  }
+}
+
+/**
  * Load a receipt image from disk, resize it, and return base64-encoded data + MIME type.
  *
- * Supported formats: PNG, JPG, JPEG, GIF, WebP.
- * PDF and unsupported formats are rejected with a clear error.
+ * Supported formats: PNG, JPG, JPEG, GIF, WebP, PDF (first page only).
+ * Unsupported formats are rejected with a clear error.
  *
- * Returns { data (base64), mimeType }.
+ * Returns { data (base64), mimeType, pageCount? }.
+ * pageCount is only set for PDFs and indicates the total number of pages.
  */
-export async function loadReceiptImage(path: string): Promise<{ data: string; mimeType: string }> {
+export async function loadReceiptImage(
+  path: string
+): Promise<{ data: string; mimeType: string; pageCount?: number }> {
   // Resolve path from cwd
   const resolvedPath = resolve(path);
 
   // Get file extension (basename-only, so dots in directory names don't confuse this)
   const ext = extname(resolvedPath).toLowerCase();
-
-  // Check for PDF explicitly
-  if (ext === '.pdf') {
-    throw new Error(
-      'PDF files are not yet supported. Please convert the PDF to an image format (PNG, JPG, GIF, or WebP) and try again.'
-    );
-  }
-
-  // Check if extension is supported
-  if (!SUPPORTED_EXTENSIONS[ext]) {
-    throw new Error(
-      `Unsupported file format: ${ext}. Supported formats are: PNG, JPG, JPEG, GIF, WebP.`
-    );
-  }
 
   // Read the file
   let fileBuffer: Buffer;
@@ -62,24 +87,42 @@ export async function loadReceiptImage(path: string): Promise<{ data: string; mi
     throw new Error(`Failed to read receipt file: ${err.message}`);
   }
 
-  const mimeType = SUPPORTED_EXTENSIONS[ext];
+  let mimeType = 'image/png';
+  let imageBuffer = fileBuffer;
+  let pageCount: number | undefined;
+
+  // Handle PDF files: rasterize to PNG
+  if (ext === '.pdf') {
+    const { pngBuffer, pageCount: count } = await rasterizePdf(fileBuffer);
+    imageBuffer = pngBuffer;
+    pageCount = count;
+    mimeType = 'image/png';
+  } else if (SUPPORTED_EXTENSIONS[ext]) {
+    // Standard image formats
+    mimeType = SUPPORTED_EXTENSIONS[ext];
+  } else {
+    // Unsupported extension
+    throw new Error(
+      `Unsupported file format: ${ext}. Supported formats are: PNG, JPG, JPEG, GIF, WebP, PDF.`
+    );
+  }
 
   // Resize the image using the utility from pi-coding-agent
-  // Pass fileBuffer as Uint8Array (Buffer is a Uint8Array subclass)
-  const resized = await resizeImage(fileBuffer, mimeType);
+  // Pass imageBuffer as Uint8Array (Buffer is a Uint8Array subclass)
+  const resized = await resizeImage(imageBuffer, mimeType);
 
   // If resizing fails (Photon not available or image can't be resized below maxBytes),
   // fall back to using the original buffer base64-encoded
   let data: string;
   if (resized === null) {
-    // Fallback: use original file bytes base64-encoded
-    data = fileBuffer.toString('base64');
+    // Fallback: use original image bytes base64-encoded
+    data = imageBuffer.toString('base64');
   } else {
     // Use the resized base64 data (already base64-encoded by resizeImage)
     data = resized.data;
   }
 
-  return { data, mimeType };
+  return { data, mimeType, pageCount };
 }
 
 export interface PostReceiptEntryOptions {

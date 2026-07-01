@@ -60,15 +60,45 @@ describe('Receipt OCR: image loading and posting', () => {
       assert.strictEqual(decoded[3], 0x47, 'PNG magic byte 4 should be 0x47');
     });
 
-    it('should reject .pdf files with a clear unsupported-format error', async () => {
-      const testPdfPath = join(process.cwd(), 'test/fixtures/test.pdf');
-      writeFileSync(testPdfPath, 'fake pdf content');
+    it('should rasterize a single-page PDF and return valid PNG data', async () => {
+      const fixturePath = join(process.cwd(), 'test/fixtures/receipt.pdf');
+      const result = await loadReceiptImage(fixturePath);
+
+      assert.ok(result.data);
+      assert.strictEqual(result.mimeType, 'image/png');
+      assert.strictEqual(result.pageCount, 1);
+      assert.ok(result.data.length > 0);
+      // Verify it's valid base64 by decoding
+      const decoded = Buffer.from(result.data, 'base64');
+      assert.doesNotThrow(() => Buffer.from(result.data, 'base64'));
+
+      // Verify PNG magic bytes (89 50 4E 47)
+      assert.ok(decoded.length >= 4, 'Decoded PNG should be at least 4 bytes (magic bytes)');
+      assert.strictEqual(decoded[0], 0x89, 'PNG magic byte 1 should be 0x89');
+      assert.strictEqual(decoded[1], 0x50, 'PNG magic byte 2 should be 0x50');
+      assert.strictEqual(decoded[2], 0x4e, 'PNG magic byte 3 should be 0x4e');
+      assert.strictEqual(decoded[3], 0x47, 'PNG magic byte 4 should be 0x47');
+    });
+
+    it('should note additional pages when given a multi-page PDF', async () => {
+      const fixturePath = join(process.cwd(), 'test/fixtures/receipt-multipage.pdf');
+      const result = await loadReceiptImage(fixturePath);
+
+      assert.ok(result.data);
+      assert.strictEqual(result.mimeType, 'image/png');
+      assert.ok(result.pageCount && result.pageCount > 1, 'Multi-page PDF should report page count > 1');
+      assert.strictEqual(result.pageCount, 2, 'Multi-page PDF fixture should have exactly 2 pages');
+    });
+
+    it('should throw a clear error for corrupted PDF files', async () => {
+      const testPdfPath = join(process.cwd(), 'test/fixtures/corrupted.pdf');
+      writeFileSync(testPdfPath, 'this is not a valid pdf at all');
 
       try {
         await loadReceiptImage(testPdfPath);
-        assert.fail('Should have thrown an error for PDF files');
+        assert.fail('Should have thrown an error for corrupted PDF files');
       } catch (err: any) {
-        assert.match(err.message, /PDF.*not yet supported|convert.*image/i);
+        assert.match(err.message, /Failed to rasterize PDF|Failed to read receipt file/i);
       } finally {
         unlinkSync(testPdfPath);
       }
