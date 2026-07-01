@@ -31,15 +31,17 @@ const SUPPORTED_EXTENSIONS: Record<string, string> = {
 async function rasterizePdf(
   fileBuffer: Buffer
 ): Promise<{ pngBuffer: Buffer; pageCount: number }> {
+  // pdf() from pdf-to-img returns an async iterable with a length property.
+  // Its docs require calling destroy() to free the underlying pdfjs document.
+  let document: Awaited<ReturnType<typeof pdf>> | undefined;
   try {
-    // pdf() from pdf-to-img returns an async iterable with a length property
-    const document = await pdf(fileBuffer);
+    document = await pdf(fileBuffer);
 
     if (!document || document.length === 0) {
       throw new Error('PDF has no extractable pages');
     }
 
-    // Get the first page (index 0) as a PNG Buffer
+    // Get page 1 (1-indexed) as a PNG Buffer
     const pngBuffer = await document.getPage(1);
 
     if (!pngBuffer) {
@@ -51,6 +53,8 @@ async function rasterizePdf(
     return { pngBuffer, pageCount };
   } catch (err: any) {
     throw new Error(`Failed to rasterize PDF: ${err.message}`);
+  } finally {
+    await document?.destroy();
   }
 }
 
