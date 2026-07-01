@@ -6,7 +6,7 @@
 
 import { describe, it, beforeEach, afterEach, before, after } from 'node:test';
 import assert from 'node:assert';
-import { rmSync, mkdtempSync } from 'fs';
+import { rmSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import {
@@ -26,6 +26,7 @@ import {
   parseDate,
   parseAmountCents,
 } from '../.pi/extensions/bank_sync/csv.ts';
+import { upsertRule, saveRules, loadRules } from '../.pi/extensions/categorization/rules.ts';
 
 describe('bank_sync ingestion', () => {
   let ledger: Ledger;
@@ -34,10 +35,12 @@ describe('bank_sync ingestion', () => {
   before(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'bank-sync-test-'));
     process.env.BOOKKEEPING_ANOMALY_LOG_PATH = join(tmpDir, 'anomaly_log.json');
+    process.env.BOOKKEEPING_VENDOR_RULES_PATH = join(tmpDir, 'vendor_rules.json');
   });
 
   after(() => {
     delete process.env.BOOKKEEPING_ANOMALY_LOG_PATH;
+    delete process.env.BOOKKEEPING_VENDOR_RULES_PATH;
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
@@ -46,8 +49,24 @@ describe('bank_sync ingestion', () => {
     // $500 auto-post threshold; the dedicated threshold test below overrides this.
     process.env.BOOKKEEPING_AUTOPOST_LIMIT = '999999';
     delete process.env.BOOKKEEPING_DB_PATH;
+
+    // Clear the vendor rules file for this test
+    const rulesPath = process.env.BOOKKEEPING_VENDOR_RULES_PATH || join(tmpDir, 'vendor_rules.json');
+    writeFileSync(rulesPath, '{}', 'utf-8');
+
     ledger = openLedger(':memory:');
     createAccount(ledger, { name: 'Assets:Checking' });
+    // Create root accounts for categorization; use try-catch since they may exist
+    try {
+      createAccount(ledger, { name: 'Expenses' });
+    } catch {
+      // Already exists
+    }
+    try {
+      createAccount(ledger, { name: 'Income' });
+    } catch {
+      // Already exists
+    }
   });
 
   afterEach(() => {
@@ -394,6 +413,206 @@ describe('bank_sync ingestion', () => {
     it('toMinor converts log_transaction-style major amounts to minor units', () => {
       assert.strictEqual(toMinor(-55.2), -5520);
       assert.strictEqual(toMinor(1500), 150000);
+    });
+  });
+
+  describe('auto-categorization via vendor rules', () => {
+    it('high-confidence rule match posts directly against the matched category account, not Uncategorized', () => {
+      // Set up a high-confidence vendor rule for Trader Joe's → Expenses:Food
+      // Use pattern 'trader joe' which will match the normalized payee 'trader joe s'
+      let rules = loadRules();
+      rules = upsertRule(rules, 'trader joe', 'Expenses:Food');
+      rules = upsertRule(rules, 'trader joe', 'Expenses:Food'); // 2nd call makes confidence 'high'
+      saveRules(rules);
+
+      const result = postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: -5520,
+        account: 'Assets:Checking',
+        description: "Trader Joe's",
+      });
+      assert.ok('transactionId' in result);
+
+      // Verify the transaction posted against Expenses:Food, not Expenses:Uncategorized
+      const foodAccount = resolveAccount(ledger, 'Expenses:Food');
+      const checking = resolveAccount(ledger, 'Assets:Checking');
+
+      const txns = listTransactions(ledger, { limit: 10 });
+      assert.strictEqual(txns.length, 1);
+      const splits = txns[0].splits;
+      const checkingSplit = splits.find((s) => s.account_id === checking.id)!;
+      const categorySplit = splits.find((s) => s.account_id === foodAccount.id)!;
+      assert.strictEqual(checkingSplit.amount, -5520);
+      assert.strictEqual(categorySplit.amount, 5520);
+
+      // Uncategorized account should NOT have been created
+      try {
+        resolveAccount(ledger, 'Expenses:Uncategorized');
+        assert.fail('Expenses:Uncategorized should not have been created');
+      } catch {
+        // Expected: account doesn't exist
+      }
+    });
+
+    it('low-confidence rule match (hits: 1) falls back to Uncategorized', () => {
+      // Set up a low-confidence vendor rule (only 1 hit)
+      let rules = loadRules();
+      rules = upsertRule(rules, 'trader joe', 'Expenses:Food'); // 1st call makes confidence 'low'
+      saveRules(rules);
+
+      const result = postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: -5520,
+        account: 'Assets:Checking',
+        description: "Trader Joe's",
+      });
+      assert.ok('transactionId' in result);
+
+      // Verify the transaction posted against Expenses:Uncategorized, not Expenses:Food
+      const uncategorized = resolveAccount(ledger, 'Expenses:Uncategorized');
+      const checking = resolveAccount(ledger, 'Assets:Checking');
+
+      const txns = listTransactions(ledger, { limit: 10 });
+      assert.strictEqual(txns.length, 1);
+      const splits = txns[0].splits;
+      const checkingSplit = splits.find((s) => s.account_id === checking.id)!;
+      const uncatSplit = splits.find((s) => s.account_id === uncategorized.id)!;
+      assert.strictEqual(checkingSplit.amount, -5520);
+      assert.strictEqual(uncatSplit.amount, 5520);
+    });
+
+    it('no matching rule falls back to Uncategorized (regression check)', () => {
+      const result = postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: -5520,
+        account: 'Assets:Checking',
+        description: "Trader Joe's",
+      });
+      assert.ok('transactionId' in result);
+
+      // Verify posted to Expenses:Uncategorized
+      const uncategorized = resolveAccount(ledger, 'Expenses:Uncategorized');
+      const txns = listTransactions(ledger, { limit: 10 });
+      const splits = txns[0].splits;
+      const uncatSplit = splits.find((s) => s.account_id === uncategorized.id)!;
+      assert.ok(uncatSplit);
+    });
+
+    it('type mismatch (income amount but expense rule) falls back to Uncategorized', () => {
+      // Set up a high-confidence rule pointing to an EXPENSE account
+      let rules = loadRules();
+      rules = upsertRule(rules, 'freelance', 'Expenses:Consulting');
+      rules = upsertRule(rules, 'freelance', 'Expenses:Consulting'); // high confidence
+      saveRules(rules);
+
+      // Try to post an INCOME entry (positive amount) matching the rule
+      const result = postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: 50000,
+        account: 'Assets:Checking',
+        description: 'Freelance work',
+      });
+      assert.ok('transactionId' in result);
+
+      // Should have posted to Income:Uncategorized, not Expenses:Consulting
+      const incomeUncat = resolveAccount(ledger, 'Income:Uncategorized');
+      const txns = listTransactions(ledger, { limit: 10 });
+      const splits = txns[0].splits;
+      const incomeUncatSplit = splits.find((s) => s.account_id === incomeUncat.id)!;
+      assert.ok(incomeUncatSplit);
+
+      // Expenses:Consulting should exist (from the rule definition) but should NOT have been used
+      const consultingAccount = resolveAccount(ledger, 'Expenses:Consulting');
+      const consultingSplit = splits.find((s) => s.account_id === consultingAccount.id);
+      assert.ok(!consultingSplit, 'Expenses:Consulting split should not exist');
+    });
+
+    it('matched category account auto-created if it does not exist yet', () => {
+      // Set up a high-confidence rule for a non-existent account
+      let rules = loadRules();
+      rules = upsertRule(rules, 'fancy', 'Expenses:Dining');
+      rules = upsertRule(rules, 'fancy', 'Expenses:Dining'); // high confidence
+      saveRules(rules);
+
+      // Expenses:Dining should not exist yet
+      try {
+        resolveAccount(ledger, 'Expenses:Dining');
+        assert.fail('Expenses:Dining should not exist yet');
+      } catch {
+        // Expected
+      }
+
+      const result = postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: -12500,
+        account: 'Assets:Checking',
+        description: 'Fancy restaurant',
+      });
+      assert.ok('transactionId' in result);
+
+      // Now Expenses:Dining should exist and the transaction should have posted against it
+      const diningAccount = resolveAccount(ledger, 'Expenses:Dining');
+      assert.strictEqual(diningAccount.name, 'Expenses:Dining');
+      assert.strictEqual(diningAccount.type, 'expense');
+
+      const txns = listTransactions(ledger, { limit: 10 });
+      const splits = txns[0].splits;
+      const diningSplit = splits.find((s) => s.account_id === diningAccount.id)!;
+      assert.strictEqual(diningSplit.amount, 12500);
+    });
+
+    it('importCsvRows applies high-confidence rules per row and loads rules once', () => {
+      // Set up high-confidence rules
+      let rules = loadRules();
+      rules = upsertRule(rules, 'trader joe', 'Expenses:Food');
+      rules = upsertRule(rules, 'trader joe', 'Expenses:Food');
+      rules = upsertRule(rules, 'amazon', 'Expenses:Shopping');
+      rules = upsertRule(rules, 'amazon', 'Expenses:Shopping');
+      saveRules(rules);
+
+      const text =
+        'Date,Description,Amount\n' +
+        '2024-06-01,Trader Joes,-55.20\n' +
+        '2024-06-02,Amazon Purchase,-29.99\n' +
+        '2024-06-03,Trader Joes,-32.15\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+
+      const result = importCsvRows(ledger, rows, cols, { account: 'Assets:Checking' });
+
+      assert.strictEqual(result.imported.length, 3);
+      assert.strictEqual(result.errors.length, 0);
+      assert.strictEqual(result.skippedDuplicates.length, 0);
+
+      // Verify all three transactions posted to their matched categories, not Uncategorized
+      const txns = listTransactions(ledger, { limit: 10 });
+      assert.strictEqual(txns.length, 3);
+
+      const foodAccount = resolveAccount(ledger, 'Expenses:Food');
+      const shoppingAccount = resolveAccount(ledger, 'Expenses:Shopping');
+
+      // Verify first row (Trader Joes) posted to Food
+      const firstSplits = txns[2].splits; // reverse order due to desc by date
+      const foodSplit1 = firstSplits.find((s) => s.account_id === foodAccount.id);
+      assert.ok(foodSplit1, 'First Trader Joes should post to Expenses:Food');
+
+      // Verify second row (Amazon) posted to Shopping
+      const secondSplits = txns[1].splits;
+      const shoppingSplit = secondSplits.find((s) => s.account_id === shoppingAccount.id);
+      assert.ok(shoppingSplit, 'Amazon should post to Expenses:Shopping');
+
+      // Verify third row (Trader Joes) posted to Food
+      const thirdSplits = txns[0].splits;
+      const foodSplit2 = thirdSplits.find((s) => s.account_id === foodAccount.id);
+      assert.ok(foodSplit2, 'Second Trader Joes should post to Expenses:Food');
+
+      // Uncategorized account should NOT have been created
+      try {
+        resolveAccount(ledger, 'Expenses:Uncategorized');
+        assert.fail('Expenses:Uncategorized should not have been created');
+      } catch {
+        // Expected: account doesn't exist
+      }
     });
   });
 });

@@ -38,7 +38,7 @@ export default function (pi: ExtensionAPI) {
     label: 'Log Transaction',
     description:
       'Post a single confirmed transaction (manual entry) as a balanced double-entry ' +
-      'against an Uncategorized account.',
+      'against a matched category account (if a high-confidence vendor rule exists) or an Uncategorized account.',
     parameters: Type.Object({
       date: Type.String({ description: 'Transaction date (YYYY-MM-DD)' }),
       amount: Type.Number({
@@ -70,8 +70,9 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       'Confirm the parsed date, amount, payee, and account with the user before calling this tool.',
       'Amount sign matches post_transaction: negative = expense (money out), positive = income (money in).',
-      'The offsetting account is inferred automatically: Expenses:Uncategorized for expenses, ' +
-        'Income:Uncategorized for income. Do not pass a separate offsetting account.',
+      'The offsetting account is inferred automatically: if a high-confidence vendor rule matches the payee, ' +
+        'it posts to that category; otherwise Expenses:Uncategorized for expenses, Income:Uncategorized for income. ' +
+        'Do not pass a separate offsetting account.',
       'Likely duplicates are blocked, not silently posted. If blocked, tell the user which existing ' +
         'transaction matched and re-call with force: true only if the user confirms it is not a duplicate.',
     ],
@@ -111,7 +112,8 @@ export default function (pi: ExtensionAPI) {
     name: 'import_csv',
     label: 'Import CSV',
     description:
-      'Bulk-import a bank/card CSV export, posting every valid row as an uncategorized entry.',
+      'Bulk-import a bank/card CSV export, posting every valid row to a matched category account ' +
+      '(if a high-confidence vendor rule exists) or as an uncategorized entry.',
     parameters: Type.Object({
       path: Type.String({
         description: 'Path to the CSV file, resolved from cwd (e.g. "data/inbox/chase_march.csv")',
@@ -143,7 +145,8 @@ export default function (pi: ExtensionAPI) {
     promptGuidelines: [
       'Columns are auto-detected (date, amount or debit/credit, description/payee); pass the ' +
         '*_column overrides only if auto-detection fails.',
-      'Every valid row posts as an uncategorized entry (Expenses:Uncategorized / Income:Uncategorized).',
+      'Each valid row posts to a matched category account (if a high-confidence vendor rule matches the payee) ' +
+        'or to an uncategorized entry (Expenses:Uncategorized / Income:Uncategorized) if no match.',
       'Likely-duplicate rows are skipped by default and reported in skipped_duplicates with the ' +
         'matched transaction id — never silently dropped. Use force_duplicates: true to re-post them.',
       'Malformed rows (bad date, non-numeric amount, unknown account, threshold-blocked) are reported ' +
