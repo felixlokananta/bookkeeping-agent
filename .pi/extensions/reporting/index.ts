@@ -212,7 +212,12 @@ export default function (pi: ExtensionAPI) {
         });
 
         // Convert to CSV format
-        const columns = ['date', 'accountName', 'description', 'amountMajor'];
+        const columns: (keyof TaxYearRow & string)[] = [
+          'date',
+          'accountName',
+          'description',
+          'amountMajor',
+        ];
         const csv = toCsv(rows, columns);
 
         // Determine output path
@@ -286,7 +291,7 @@ function formatIncomeStatement(result: IncomeStatementResult): string {
 /**
  * Format balance sheet as a readable string.
  */
-function formatBalanceSheet(result: BalanceSheetResult): string {
+export function formatBalanceSheet(result: BalanceSheetResult): string {
   let text = 'Balance Sheet\n';
   text += '==================\n\n';
 
@@ -300,7 +305,7 @@ function formatBalanceSheet(result: BalanceSheetResult): string {
   for (const item of result.liabilities) {
     text += `  ${item.accountName}: $${formatMoney(item.totalMinor)}\n`;
   }
-  text += `Total Liabilities: $${formatMoney(result.totalLiabilitiesMinor ?? 0)}\n\n`;
+  text += `Total Liabilities: $${formatMoney(result.totalLiabilitiesMinor)}\n\n`;
 
   text += 'Equity:\n';
   for (const item of result.equityAccounts) {
@@ -309,7 +314,7 @@ function formatBalanceSheet(result: BalanceSheetResult): string {
   if (result.retainedEarnings !== 0) {
     text += `  Retained Earnings: $${formatMoney(result.retainedEarnings)}\n`;
   }
-  text += `Total Equity: $${formatMoney((result.totalLiabilitiesAndEquityMinor ?? 0) - (result.totalLiabilitiesMinor ?? 0))}\n\n`;
+  text += `Total Equity: $${formatMoney(result.totalEquityMinor)}\n\n`;
 
   text += `Total Liabilities + Equity: $${formatMoney(result.totalLiabilitiesAndEquityMinor)}\n\n`;
 

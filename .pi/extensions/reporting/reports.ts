@@ -245,6 +245,8 @@ export interface BalanceSheetResult {
   equityAccounts: BalanceSheetAccount[];
   retainedEarnings: number;
   totalAssetsMinor: number;
+  totalLiabilitiesMinor: number;
+  totalEquityMinor: number;
   totalLiabilitiesAndEquityMinor: number;
 }
 
@@ -325,6 +327,8 @@ export function balanceSheet(ledger: Ledger, opts: BalanceSheetOpts): BalanceShe
     equityAccounts,
     retainedEarnings,
     totalAssetsMinor,
+    totalLiabilitiesMinor,
+    totalEquityMinor: totalEquityMinor + retainedEarnings,
     totalLiabilitiesAndEquityMinor,
   };
 }

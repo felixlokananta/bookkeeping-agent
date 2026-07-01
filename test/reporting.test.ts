@@ -20,6 +20,7 @@ import {
   getDescendantAccountIds,
 } from '../.pi/extensions/reporting/reports.ts';
 import { toCsv } from '../.pi/extensions/reporting/csv.ts';
+import { formatBalanceSheet } from '../.pi/extensions/reporting/index.ts';
 
 describe('Reporting Extension Tests', () => {
   let ledger: Ledger;
@@ -660,6 +661,29 @@ describe('Reporting Extension Tests', () => {
       assert.strictEqual(typeof result.totalLiabilitiesAndEquityMinor, 'number');
       // Verify accounting identity
       assert.strictEqual(result.totalAssetsMinor, result.totalLiabilitiesAndEquityMinor);
+    });
+
+    it('should render formatted text totals matching the structured result', () => {
+      postTransaction(ledger, {
+        date: '2025-06-10',
+        splits: [
+          { account: 'Assets:Checking', amount: 50000 },
+          { account: 'Liabilities:CreditCard', amount: -50000 },
+        ],
+      });
+
+      const result = balanceSheet(ledger, { asOf: '2025-06-30' });
+      assert.notStrictEqual(result.totalLiabilitiesMinor, 0);
+
+      const text = formatBalanceSheet(result);
+      assert.ok(
+        text.includes(`Total Liabilities: $${(result.totalLiabilitiesMinor / 100).toFixed(2)}`)
+      );
+      assert.ok(
+        text.includes(`Total Equity: $${(result.totalEquityMinor / 100).toFixed(2)}`)
+      );
+      // The displayed liabilities figure must not silently fall back to zero.
+      assert.ok(!text.includes('Total Liabilities: $0.00'));
     });
 
     it('should run taxYearExport without throwing', () => {

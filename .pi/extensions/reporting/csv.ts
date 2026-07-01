@@ -11,7 +11,7 @@
  * @param columns Array of column names (keys to extract from rows)
  * @returns CSV string with header and data rows
  */
-export function toCsv(rows: Record<string, unknown>[], columns: string[]): string {
+export function toCsv<T extends object>(rows: T[], columns: (keyof T & string)[]): string {
   const lines: string[] = [];
 
   // Header row
