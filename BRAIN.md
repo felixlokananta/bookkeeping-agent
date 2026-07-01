@@ -77,9 +77,18 @@ felt in production.
 - **Natural balance:** The balance shown to a user, always positive when the account is "full" (e.g., a $100 checking account shows +100, not -100). The raw database sum is adjusted by the normal balance direction.
 - **Balanced transaction:** A transaction where total debits == total credits (always sums to zero in the database).
 
-## Future Considerations (Out of Scope, Issue #1)
+## Reporting and Financial Statements (Issue #5)
 
-- Vendor rules and categorization learning (issue #4)
-- Tax rules and category mappings (issue #5)
+The `reporting` extension provides four tools for financial analysis and tax compliance:
+- `spending_by_category` — hierarchical expense breakdown with drill-down
+- `income_statement` — P&L for a date range
+- `balance_sheet` — Assets = Liabilities + Equity (with retained earnings calculation)
+- `tax_year_export` — CSV export of income/expense splits for tax preparation
+
+All reports read from the ledger without modifying it; no closing entries are posted (retained earnings is calculated at report time).
+
+## Future Considerations (Out of Scope)
+
+- Inventing a tax-code mapping taxonomy beyond the existing chart of accounts (issue #5 scope is categorized export only, not full tax integration)
 - Multi-currency and foreign-exchange handling
 - Recurring transactions and period-end closings

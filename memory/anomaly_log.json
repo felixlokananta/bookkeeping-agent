@@ -1003,5 +1003,152 @@
     "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
     "magnitudeMinor": 60000,
     "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.493Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.495Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.496Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.497Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.498Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.499Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:27.500Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:28.411Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.368Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.370Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.371Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.372Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.373Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.375Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 1000 exceed auto-post limit 500",
+    "magnitudeMinor": 100000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.376Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:26:33.835Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:27:49.212Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:27:53.455Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:27:57.621Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:28:19.867Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T18:28:24.567Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
   }
 ]
