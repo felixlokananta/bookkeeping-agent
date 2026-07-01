@@ -26,5 +26,982 @@
     "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
     "magnitudeMinor": 60000,
     "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T08:23:48.077Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T08:24:15.005Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T15:47:05.990Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T15:52:33.627Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T15:58:24.965Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:58:14.339Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.341Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.341Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.341Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.342Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.342Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.342Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.343Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.343Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.344Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.344Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.344Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.344Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.345Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.345Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.345Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.346Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.346Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.346Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.347Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.347Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.347Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.347Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.348Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:14.348Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:15.136Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:58:20.572Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.574Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.574Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.575Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.575Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.575Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.576Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.576Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.576Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.577Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.578Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.578Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.578Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.579Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.579Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.579Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.579Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.580Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.580Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.580Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.581Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.581Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.582Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.582Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:20.583Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:21.031Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:58:28.676Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.678Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.678Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.679Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.679Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.680Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.680Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.680Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.681Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.682Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.682Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.682Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.683Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.683Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.684Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.684Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.684Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.685Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.685Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.685Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.686Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.686Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.686Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.687Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:28.687Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Assets:Checking"
+  },
+  {
+    "ts": "2026-07-01T16:58:29.145Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:58:42.602Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.602Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.603Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.604Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.605Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.606Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.607Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.607Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.608Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.608Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.609Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.609Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:42.610Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:43.288Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:58:49.431Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.432Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.432Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.434Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.434Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.436Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.436Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.437Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.438Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.438Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.439Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.439Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.440Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:58:49.889Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:01.102Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.103Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.103Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.105Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.105Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.107Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.107Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.108Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.108Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.109Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.109Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.110Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.111Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:01.531Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:09.237Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.237Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.238Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.240Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.240Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.242Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.242Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.243Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.243Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.244Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.244Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.245Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.245Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:09.707Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:14.767Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.767Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.768Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.770Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.771Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.772Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.773Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.775Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.775Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.776Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.777Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.778Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:14.778Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:15.236Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:29.168Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.169Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.169Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.171Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.171Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.173Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.173Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.174Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.174Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.175Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.175Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.175Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.176Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:29.845Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:34.596Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.597Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.597Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.599Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.600Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.601Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.602Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.602Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.603Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.603Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.604Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.605Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:34.605Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Uncategorized"
+  },
+  {
+    "ts": "2026-07-01T16:59:35.045Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:46.715Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T16:59:53.020Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T17:00:13.023Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T17:00:18.019Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T17:00:42.372Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T17:00:47.864Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
   }
 ]
