@@ -52,7 +52,7 @@ export default function (pi: ExtensionAPI) {
       if (!ledger) throw new Error('Ledger not initialized');
 
       try {
-        const { data, mimeType } = loadReceiptImage(params.path);
+        const { data, mimeType } = await loadReceiptImage(params.path);
 
         return {
           content: [

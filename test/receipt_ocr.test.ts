@@ -28,55 +28,60 @@ describe('Receipt OCR: image loading and posting', () => {
   });
 
   describe('loadReceiptImage', () => {
-    it('should load a valid PNG file and return base64 data + correct mimeType', () => {
+    it('should load a valid PNG file and return base64 data + correct mimeType', async () => {
       const fixturePath = join(process.cwd(), 'test/fixtures/receipt.png');
-      const result = loadReceiptImage(fixturePath);
+      const result = await loadReceiptImage(fixturePath);
 
       assert.ok(result.data);
       assert.strictEqual(result.mimeType, 'image/png');
       assert.ok(result.data.length > 0);
       // Verify it's valid base64 by decoding
+      const decoded = Buffer.from(result.data, 'base64');
       assert.doesNotThrow(() => Buffer.from(result.data, 'base64'));
+
+      // Verify PNG magic bytes (89 50 4E 47)
+      assert.ok(decoded.length >= 4, 'Decoded PNG should be at least 4 bytes (magic bytes)');
+      assert.strictEqual(decoded[0], 0x89, 'PNG magic byte 1 should be 0x89');
+      assert.strictEqual(decoded[1], 0x50, 'PNG magic byte 2 should be 0x50');
+      assert.strictEqual(decoded[2], 0x4e, 'PNG magic byte 3 should be 0x4e');
+      assert.strictEqual(decoded[3], 0x47, 'PNG magic byte 4 should be 0x47');
     });
 
-    it('should reject .pdf files with a clear unsupported-format error', () => {
+    it('should reject .pdf files with a clear unsupported-format error', async () => {
       const testPdfPath = join(process.cwd(), 'test/fixtures/test.pdf');
       writeFileSync(testPdfPath, 'fake pdf content');
 
-      assert.throws(
-        () => loadReceiptImage(testPdfPath),
-        (err: any) => {
-          assert.match(err.message, /PDF.*not yet supported|convert.*image/i);
-          return true;
-        }
-      );
-
-      unlinkSync(testPdfPath);
+      try {
+        await loadReceiptImage(testPdfPath);
+        assert.fail('Should have thrown an error for PDF files');
+      } catch (err: any) {
+        assert.match(err.message, /PDF.*not yet supported|convert.*image/i);
+      } finally {
+        unlinkSync(testPdfPath);
+      }
     });
 
-    it('should reject unsupported extensions (e.g. .txt)', () => {
+    it('should reject unsupported extensions (e.g. .txt)', async () => {
       const testTxtPath = join(process.cwd(), 'test/fixtures/test.txt');
       writeFileSync(testTxtPath, 'some text');
 
-      assert.throws(
-        () => loadReceiptImage(testTxtPath),
-        (err: any) => {
-          assert.match(err.message, /Unsupported file format/i);
-          return true;
-        }
-      );
-
-      unlinkSync(testTxtPath);
+      try {
+        await loadReceiptImage(testTxtPath);
+        assert.fail('Should have thrown an error for unsupported file format');
+      } catch (err: any) {
+        assert.match(err.message, /Unsupported file format/i);
+      } finally {
+        unlinkSync(testTxtPath);
+      }
     });
 
-    it('should throw a clear file-not-found error for missing files', () => {
-      assert.throws(
-        () => loadReceiptImage('test/fixtures/nonexistent.png'),
-        (err: any) => {
-          assert.match(err.message, /not found/i);
-          return true;
-        }
-      );
+    it('should throw a clear file-not-found error for missing files', async () => {
+      try {
+        await loadReceiptImage('test/fixtures/nonexistent.png');
+        assert.fail('Should have thrown an error for missing file');
+      } catch (err: any) {
+        assert.match(err.message, /not found/i);
+      }
     });
   });
 

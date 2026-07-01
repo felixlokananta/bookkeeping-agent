@@ -30,7 +30,7 @@ const SUPPORTED_EXTENSIONS: Record<string, string> = {
  *
  * Returns { data (base64), mimeType }.
  */
-export function loadReceiptImage(path: string): { data: string; mimeType: string } {
+export async function loadReceiptImage(path: string): Promise<{ data: string; mimeType: string }> {
   // Resolve path from cwd
   const resolvedPath = resolve(path);
 
@@ -62,12 +62,22 @@ export function loadReceiptImage(path: string): { data: string; mimeType: string
     throw new Error(`Failed to read receipt file: ${err.message}`);
   }
 
-  // Resize the image using the utility from pi-coding-agent
-  const resizedBuffer = resizeImage(fileBuffer);
-
-  // Convert to base64
-  const data = resizedBuffer.toString('base64');
   const mimeType = SUPPORTED_EXTENSIONS[ext];
+
+  // Resize the image using the utility from pi-coding-agent
+  // Pass fileBuffer as Uint8Array (Buffer is a Uint8Array subclass)
+  const resized = await resizeImage(fileBuffer, mimeType);
+
+  // If resizing fails (Photon not available or image can't be resized below maxBytes),
+  // fall back to using the original buffer base64-encoded
+  let data: string;
+  if (resized === null) {
+    // Fallback: use original file bytes base64-encoded
+    data = fileBuffer.toString('base64');
+  } else {
+    // Use the resized base64 data (already base64-encoded by resizeImage)
+    data = resized.data;
+  }
 
   return { data, mimeType };
 }
