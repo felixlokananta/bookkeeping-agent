@@ -90,6 +90,9 @@ BEGIN
   SELECT RAISE(ABORT, 'splits are append-only: DELETE not allowed');
 END;
 
+-- account_id is deliberately excluded from this column list: categorization
+-- legitimately re-points a split's account_id to move it out of Uncategorized
+-- or correct a prior category (see AGENTS.md hard rule 7).
 CREATE TRIGGER IF NOT EXISTS trg_splits_no_update
 BEFORE UPDATE OF id, transaction_id, amount, memo ON splits
 BEGIN
