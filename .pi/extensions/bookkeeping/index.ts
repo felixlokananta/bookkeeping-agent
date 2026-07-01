@@ -16,9 +16,9 @@ import {
   listAccounts,
   listTransactions,
   type Ledger,
-} from './ledger.js';
-import { toMinor, toMajor, formatMoney } from './money.js';
-import { ACCOUNT_TYPES } from './schema.js';
+} from './ledger.ts';
+import { toMinor, toMajor, formatMoney } from './money.ts';
+import { ACCOUNT_TYPES } from './schema.ts';
 
 let ledger: Ledger | null = null;
 

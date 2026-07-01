@@ -11,6 +11,9 @@
   "scripts": {
     "pi": "pi",
     "agent": "bash scripts/run_agent.sh",
-    "test": "node --test test/"
+    "test": "tsx --test test/ledger.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
   }
 }

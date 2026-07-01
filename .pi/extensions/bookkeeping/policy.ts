@@ -10,7 +10,7 @@
 
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import { toMinor } from './money.js';
+import { toMinor } from './money.ts';
 
 // @ts-ignore (yaml module is installed as a dependency)
 import YAML from 'yaml';

@@ -10,8 +10,8 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'fs';
 import { dirname, resolve } from 'path';
-import { SCHEMA_SQL, DEFAULT_CHART, ACCOUNT_TYPES, NORMAL_BALANCE_BY_TYPE, AccountType } from './schema.js';
-import { checkAutoPost, logAnomaly } from './policy.js';
+import { SCHEMA_SQL, DEFAULT_CHART, ACCOUNT_TYPES, NORMAL_BALANCE_BY_TYPE, AccountType } from './schema.ts';
+import { checkAutoPost, logAnomaly } from './policy.ts';
 
 /**
  * Represents a ledger handle with prepared statements.
