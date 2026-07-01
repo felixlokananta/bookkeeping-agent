@@ -288,7 +288,7 @@ describe('Receipt OCR: image loading and posting', () => {
       assert.ok('splitIds' in result);
     });
 
-    it('should post without source_path if not provided (source_path null)', () => {
+    it('should store an empty sourcePath as null (postTransaction coerces falsy source_path to null)', () => {
       const result = postReceiptEntry(ledger, {
         date: '2026-07-13',
         amountMinor: -1500,
@@ -302,8 +302,8 @@ describe('Receipt OCR: image loading and posting', () => {
 
       const txn = listTransactions(ledger, { limit: 100 }).find((tx) => tx.id === result.transactionId);
       assert.ok(txn);
-      // source_path is stored as empty string (not null, since we passed '')
-      assert.strictEqual(txn.source_path, '' || null);
+      // postTransaction stores `sourcePath || null`, so an empty string becomes null, not ''
+      assert.strictEqual(txn.source_path, null);
     });
   });
 

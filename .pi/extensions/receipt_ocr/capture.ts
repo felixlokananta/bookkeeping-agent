@@ -6,7 +6,7 @@
  */
 
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { resolve, extname } from 'path';
 import { resizeImage } from '@earendil-works/pi-coding-agent';
 import { postTransaction, type Ledger } from '../bookkeeping/ledger.ts';
 import { ensureUncategorizedAccount, type UncategorizedKind } from '../bank_sync/ingestion.ts';
@@ -34,8 +34,8 @@ export async function loadReceiptImage(path: string): Promise<{ data: string; mi
   // Resolve path from cwd
   const resolvedPath = resolve(path);
 
-  // Get file extension
-  const ext = resolvedPath.slice(resolvedPath.lastIndexOf('.')).toLowerCase();
+  // Get file extension (basename-only, so dots in directory names don't confuse this)
+  const ext = extname(resolvedPath).toLowerCase();
 
   // Check for PDF explicitly
   if (ext === '.pdf') {
