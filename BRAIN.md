@@ -28,12 +28,18 @@ Sub-accounts are created using colon-path notation: `Assets:Checking`, `Expenses
 
 ### Uncategorized accounts (Issue #2 — Ingestion)
 
-`Expenses:Uncategorized` and `Income:Uncategorized` are part of the working chart, auto-created on
-first use by the `bank_sync` extension's `log_transaction` and `import_csv` tools. Ingested
-transactions post as real, balanced double-entry transactions against these accounts rather than
-being held outside the ledger as pending drafts. Issue #4 (categorization) will later move splits
-from these accounts to more specific categories; until then, uncategorized balances are expected
-and normal.
+`Expenses:Uncategorized` and `Income:Uncategorized` are part of the working chart. Ingested
+transactions post as real, balanced double-entry transactions against these accounts (or a matched
+category account if auto-categorization applies; see below) rather than being held outside the ledger
+as pending drafts.
+
+As of issue #11, `log_transaction` and `import_csv` consult learned vendor rules at ingestion time.
+A high-confidence rule (`hits >= 2`) matching the payee/description will auto-post the transaction
+directly to the matched category account (if its type matches the transaction kind: expense→expense
+account, income→income account), skipping the Uncategorized round-trip entirely. This provides
+immediate categorization for known vendors. Transactions with no matching rule, low-confidence rules,
+or type mismatches still post to `Expenses:Uncategorized` or `Income:Uncategorized` as before. Issue #4
+(categorization) tools can later re-categorize Uncategorized splits or correct already-categorized ones.
 
 ### Duplicate detection tolerance (Issue #2 — Ingestion)
 

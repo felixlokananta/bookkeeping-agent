@@ -60,17 +60,25 @@ The agent has five core ledger tools:
 
 Rule enforcement note: the auto-post threshold gate in `post_transaction` is code-enforced, not advisory. See `config/policies.yaml` for the limit.
 
-## Tools (Issue #2 — Ingestion)
+## Tools (Issue #2 — Ingestion, with Issue #11 auto-categorization)
 
 The `bank_sync` extension adds two ingestion tools on top of the ledger:
 
 - **`log_transaction`** — Post a single confirmed conversational entry (manual entry). Amount is
   signed major units (negative = expense, positive = income), same convention as `post_transaction`.
-  Posts against the source account and an auto-created `Expenses:Uncategorized` /
-  `Income:Uncategorized` account. Confirm date/amount/payee/account with the user before calling.
+  Posts against the source account and either a matched category account (if a high-confidence
+  vendor rule from issue #4 matches the payee) or an auto-created `Expenses:Uncategorized` /
+  `Income:Uncategorized` account (fallback). Confirm date/amount/payee/account with the user before calling.
 - **`import_csv`** — Bulk-import a bank/card CSV export with auto-detected columns. Every valid row
-  posts as an uncategorized entry; malformed rows are reported per-row in `errors`, and likely
+  posts to either a matched category account (if a high-confidence vendor rule applies) or an
+  uncategorized entry; malformed rows are reported per-row in `errors`, and likely
   duplicates are reported per-row in `skipped_duplicates` (rule 5 above).
+
+As of issue #11, both tools consult learned vendor rules at ingestion time (before categorization tools
+exist). High-confidence rules (`hits >= 2`) auto-match the payee/description and post directly to the
+matched category account if its type matches the transaction kind. This skips the Uncategorized
+round-trip for known vendors; falls back to Uncategorized for no match, low confidence, or type
+mismatch. See issue #11 for details.
 
 Both tools inherit the auto-post threshold gate and anomaly logging from `post_transaction`
 unchanged (rule 1); a blocked row is surfaced as an error, not retried automatically.

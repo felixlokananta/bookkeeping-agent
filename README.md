@@ -250,17 +250,23 @@ Transaction is imbalanced: sum of amounts is 50 (not zero)
 
 The transaction is rejected, nothing is written, and the anomaly is logged.
 
-## Ingestion: Manual Entry and CSV Import (Issue #2)
+## Ingestion: Manual Entry and CSV Import (Issue #2, with Issue #11 auto-categorization)
 
 The `bank_sync` extension adds two tools on top of the ledger for getting transactions in:
 `log_transaction` (single confirmed conversational entry) and `import_csv` (bulk bank/card CSV
-import). Both post real, balanced double-entry transactions against the source account and an
-auto-created `Expenses:Uncategorized` / `Income:Uncategorized` account (categorization is issue
-#4's job). Put source CSV files in `data/inbox/`.
+import). Both post real, balanced double-entry transactions against the source account and either:
+- A matched category account (if a high-confidence vendor rule from issue #4 matches the payee), or
+- An auto-created `Expenses:Uncategorized` / `Income:Uncategorized` account (fallback).
+
+As of issue #11, high-confidence rules (`hits >= 2`) are applied at ingestion time, skipping the
+manual categorization step for known vendors and improving the immediate accuracy of imported data.
+Put source CSV files in `data/inbox/`.
 
 #### `log_transaction`
 Post a single confirmed transaction. Amount is major-unit and signed, same convention as
-`post_transaction`: negative = money out (expense), positive = money in (income).
+`post_transaction`: negative = money out (expense), positive = money in (income). If a high-confidence
+vendor rule matches the payee, the transaction posts directly to that category account (skipping
+Uncategorized); otherwise it posts to `Expenses:Uncategorized` or `Income:Uncategorized`.
 
 **Example prompt:**
 ```
@@ -268,7 +274,8 @@ log a transaction: $42 at Trader Joe's yesterday, from checking
 ```
 
 The agent restates the parsed date/amount/payee/account and confirms with you before calling the
-tool — there is no separate preview/draft step.
+tool — there is no separate preview/draft step. If the payee matches a learned vendor rule, the
+agent notes which category the transaction will be posted to.
 
 **Duplicate handling:** if a likely duplicate is found (same account, same amount, date within
 3 days, fuzzy-matching description), the tool blocks and names the matched transaction:
@@ -291,7 +298,8 @@ import the CSV at data/inbox/chase_march.csv into Assets:Checking
   or separate `Debit`/`Credit`), description (`Description`, `Payee`, `Name`, `Memo`). Pass
   `date_column`/`amount_column`/`debit_column`/`credit_column`/`description_column` overrides only
   if auto-detection fails.
-- Every valid row posts as an uncategorized entry.
+- Each row posts to either a matched category account (if a high-confidence vendor rule matches
+  the payee) or an uncategorized entry.
 - Likely-duplicate rows are skipped by default and reported in `skipped_duplicates` with the
   matched transaction id — never silently dropped. Re-run with `force_duplicates: true` to post
   them anyway.
@@ -659,6 +667,7 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - **Issue #3:** Receipt/invoice capture (image only, PDF unsupported in v1) ✓
 - **Issue #4:** Categorization (auto-categorize transactions using vendor rules) ✓
 - **Issue #5:** Reporting (financial statements and tax export) ✓
+- **Issue #11:** Auto-categorize transactions at ingestion time (deferred follow-up) ✓
 
 ## References
 

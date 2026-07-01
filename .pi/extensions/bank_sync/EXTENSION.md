@@ -13,21 +13,44 @@ modify `bookkeeping`'s files — it imports and reuses `openLedger`,
 
 ### `log_transaction`
 Posts a single confirmed transaction as a balanced double-entry split against
-the source account and an auto-created `Expenses:Uncategorized` or
-`Income:Uncategorized` account. `amount` is major-unit and signed (negative =
-money out, positive = money in), matching `post_transaction`'s convention.
-The agent is expected to restate and confirm the parsed date/amount/payee/
-account with the user before calling this tool — there is no separate draft/
-preview tool state.
+the source account and either:
+- A matched category account (if a high-confidence vendor rule from issue #4
+  matches the payee/description), or
+- An auto-created `Expenses:Uncategorized` or `Income:Uncategorized` account
+  (fallback when no rule matches, rule confidence is low, or account type
+  doesn't match the transaction kind).
+
+`amount` is major-unit and signed (negative = money out, positive = money in),
+matching `post_transaction`'s convention. The agent is expected to restate and
+confirm the parsed date/amount/payee/account with the user before calling this
+tool — there is no separate draft/preview tool state.
 
 ### `import_csv`
 Bulk-imports a bank/card CSV export from a local path (resolved from
 `process.cwd()`, e.g. `data/inbox/chase_march.csv`). Column headers are
 auto-detected (`date`/`posted date`/`transaction date`, `amount`,
 `debit`/`credit`, `description`/`payee`/`name`/`memo`) with optional per-call
-overrides. Every recognizable row is posted as an uncategorized entry;
-malformed or unmapped rows are reported per-row in `errors` (row number +
+overrides. Every recognizable row is posted to either:
+- A matched category account (if a high-confidence vendor rule from issue #4
+  matches the payee), or
+- An uncategorized entry (`Expenses:Uncategorized` / `Income:Uncategorized`)
+  (fallback when no rule matches, rule confidence is low, or account type
+  doesn't match the transaction kind).
+
+Malformed or unmapped rows are reported per-row in `errors` (row number +
 reason) rather than aborting the whole import.
+
+## Auto-categorization at ingestion time (Issue #11)
+
+As of issue #11, `log_transaction` and `import_csv` consult the learned vendor
+rules from `categorization/rules.ts` at posting time. When a high-confidence
+rule (`hits >= 2`) matches the payee/description and the matched account's
+type is consistent with the transaction kind (expense→debit-normal account,
+income→credit-normal account), the transaction posts directly to that category
+account, skipping manual categorization. This avoids the round-trip through
+Uncategorized for known vendors. If there's no match, the match is low-confidence,
+or the account type doesn't match, the transaction falls back to the normal
+Uncategorized behavior.
 
 ## The Uncategorized-account convention
 
@@ -36,8 +59,10 @@ held outside the ledger as pending drafts. `Expenses:Uncategorized` and
 `Income:Uncategorized` are created on first use via `bookkeeping`'s existing
 `createAccount` (colon-path auto-parent-creation) and posted via the existing
 `postTransaction`, so issue #1's invariants (balance, threshold gate, anomaly
-log) apply unchanged. Issue #4 (categorization) will later re-categorize by
-moving splits to more specific accounts.
+log) apply unchanged. If auto-categorization (issue #11) matches a high-confidence
+rule, the transaction posts to the matched category account instead. Issue #4
+(categorization) also provides manual re-categorization tools for transactions
+that posted to Uncategorized or need to be moved to a different category.
 
 ## Dedup behavior
 
