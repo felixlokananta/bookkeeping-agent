@@ -26,6 +26,25 @@ The default chart has five root accounts (one per type):
 
 Sub-accounts are created using colon-path notation: `Assets:Checking`, `Expenses:Food:Groceries`, etc. Parent accounts are auto-created if missing.
 
+### Uncategorized accounts (Issue #2 — Ingestion)
+
+`Expenses:Uncategorized` and `Income:Uncategorized` are part of the working chart, auto-created on
+first use by the `bank_sync` extension's `log_transaction` and `import_csv` tools. Ingested
+transactions post as real, balanced double-entry transactions against these accounts rather than
+being held outside the ledger as pending drafts. Issue #4 (categorization) will later move splits
+from these accounts to more specific categories; until then, uncategorized balances are expected
+and normal.
+
+### Duplicate detection tolerance (Issue #2 — Ingestion)
+
+`log_transaction` and `import_csv` share a duplicate-detection heuristic: a candidate entry is a
+likely duplicate of an existing transaction if, within a date window (default ± 3 days) of the
+candidate date, an existing transaction has a split on the same account for the *exact* same
+signed amount (minor units), and its description fuzzy-matches the candidate's (normalized
+lowercase/alphanumeric comparison; match if one normalized string contains the other, or they
+share a token of length ≥ 4). This is a heuristic, not exact — matches are always surfaced for
+confirmation rather than silently skipped or silently posted (see `AGENTS.md` hard rule 5).
+
 ## Currency and Precision
 
 - **Base currency:** USD (configurable in `config/settings.yaml`)
