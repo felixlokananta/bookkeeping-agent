@@ -135,7 +135,8 @@ export interface PostReceiptEntryOptions {
   sourcePath: string; // path to the receipt image
   confidence: 'high' | 'low';
   uncertainFields?: string[];
-  force?: boolean; // override low-confidence and duplicate blocks
+  force?: boolean; // override low-confidence block
+  forceDuplicate?: boolean; // override duplicate block, independent of `force`
   approved?: boolean; // override auto-post threshold gate
   windowDays?: number; // duplicate detection date window (default: 3 days)
 }
@@ -153,8 +154,12 @@ export type PostReceiptEntryResult =
  * Confidence gate: if confidence === 'low' && !force, returns { lowConfidence }
  * without posting, naming which fields are uncertain.
  *
- * Duplicate gate: if !force, checks for likely duplicates (same account, amount,
- * date window, fuzzy description match) and returns { duplicate } if found.
+ * Duplicate gate: if !forceDuplicate, checks for likely duplicates (same account,
+ * amount, date window, fuzzy description match) and returns { duplicate } if found.
+ * This gate is independent of `force` — confirming a low-confidence extraction
+ * does not implicitly confirm it isn't a duplicate, so overriding one gate must
+ * never silently skip the other (hard rule: both require their own explicit
+ * confirmation).
  *
  * Re-throws postTransaction errors (imbalance/threshold) unchanged.
  */
@@ -172,6 +177,7 @@ export function postReceiptEntry(
     confidence,
     uncertainFields,
     force,
+    forceDuplicate,
     approved,
     windowDays,
   } = opts;
@@ -183,8 +189,9 @@ export function postReceiptEntry(
     };
   }
 
-  // Duplicate gate: block duplicate posts unless forced
-  if (!force) {
+  // Duplicate gate: block duplicate posts unless forced. Deliberately keyed on
+  // its own flag (not `force`) so a confidence override never silently skips it.
+  if (!forceDuplicate) {
     const duplicates = findLikelyDuplicates(ledger, {
       account,
       amountMinor,

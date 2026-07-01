@@ -430,8 +430,8 @@ describe('Receipt OCR: image loading and posting', () => {
       assert.strictEqual(countAfterReceipt, countBeforeReceipt);
     });
 
-    // Test duplicate detection (scenario 3: force: true overrides duplicate block)
-    it('should post duplicate receipt with force: true, returning transactionId', () => {
+    // Test duplicate detection (scenario 3: forceDuplicate: true overrides duplicate block)
+    it('should post duplicate receipt with forceDuplicate: true, returning transactionId', () => {
       // Post the first receipt
       const result1 = postReceiptEntry(ledger, {
         date: '2026-09-03',
@@ -445,7 +445,7 @@ describe('Receipt OCR: image loading and posting', () => {
       assert.ok('transactionId' in result1);
       const firstTxCount = listTransactions(ledger, { limit: 100 }).length;
 
-      // Post the identical receipt again with force: true
+      // Post the identical receipt again with forceDuplicate: true
       const result2 = postReceiptEntry(ledger, {
         date: '2026-09-03',
         amountMinor: -6000,
@@ -453,7 +453,7 @@ describe('Receipt OCR: image loading and posting', () => {
         payee: 'Forced Duplicate Vendor',
         sourcePath: 'test/fixtures/receipt.png',
         confidence: 'high',
-        force: true, // Override the duplicate block
+        forceDuplicate: true, // Override the duplicate block
       });
 
       // Should succeed and return transactionId, not duplicate
@@ -463,6 +463,43 @@ describe('Receipt OCR: image loading and posting', () => {
       // Verify a new transaction was created
       const secondTxCount = listTransactions(ledger, { limit: 100 }).length;
       assert.strictEqual(secondTxCount, firstTxCount + 1);
+    });
+
+    // Regression test: `force` (confidence override) must NOT implicitly bypass
+    // the duplicate gate too — each gate requires its own explicit confirmation.
+    it('should still detect a duplicate when a low-confidence post is forced past the confidence gate', () => {
+      // Post the first receipt (high confidence, establishes the existing transaction)
+      const result1 = postReceiptEntry(ledger, {
+        date: '2026-09-04',
+        amountMinor: -4200,
+        account: 'Assets:TestBank',
+        payee: 'Blurry Duplicate Vendor',
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'high',
+      });
+
+      assert.ok('transactionId' in result1);
+      const firstTxCount = listTransactions(ledger, { limit: 100 }).length;
+
+      // Re-capture the same receipt, but this time as a low-confidence extraction
+      // forced past the confidence gate (force: true) without forceDuplicate.
+      const result2 = postReceiptEntry(ledger, {
+        date: '2026-09-04',
+        amountMinor: -4200,
+        account: 'Assets:TestBank',
+        payee: 'Blurry Duplicate Vendor',
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'low',
+        uncertainFields: ['amount'],
+        force: true, // Confirms the uncertain fields, does NOT confirm it's not a duplicate
+      });
+
+      // Must still surface the duplicate, not post
+      assert.ok('duplicate' in result2);
+      assert.strictEqual(result2.duplicate.transactionId, result1.transactionId);
+
+      const secondTxCount = listTransactions(ledger, { limit: 100 }).length;
+      assert.strictEqual(secondTxCount, firstTxCount);
     });
   });
 
