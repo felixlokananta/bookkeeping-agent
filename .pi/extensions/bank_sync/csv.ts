@@ -217,28 +217,6 @@ function parseSignedAmount(raw: string): number {
   return parenMatch ? -value : value;
 }
 
-/**
- * Parse unsigned amount from a string, stripping parentheses and currency
- * symbols but NOT negating (used for debit/credit columns where the formula
- * handles the sign).
- */
-function parseUnsignedAmount(raw: string): number {
-  const trimmed = raw.trim();
-  // Strip parentheses without negating (they're just formatting in debit/credit context)
-  const inner = trimmed.replace(/^\((.*)\)$/, '$1');
-  const stripped = inner.replace(/[$,]/g, '');
-
-  if (!stripped) {
-    throw new Error('Non-numeric amount');
-  }
-
-  const value = Number(stripped);
-  if (!isFinite(value)) {
-    throw new Error('Non-numeric amount');
-  }
-
-  return value;
-}
 
 /**
  * Parse the signed amount (in minor units/cents) for a row, given resolved
@@ -263,7 +241,7 @@ export function parseAmountCents(row: string[], cols: ColumnMap): number {
     const rawDebit = (row[cols.debitCol] ?? '').trim();
     if (rawDebit) {
       try {
-        debit = parseUnsignedAmount(rawDebit);
+        debit = parseSignedAmount(rawDebit);
       } catch {
         throw new Error(`Non-numeric debit/credit: debit=${row[cols.debitCol]} credit=${row[cols.creditCol]}`);
       }
@@ -272,7 +250,7 @@ export function parseAmountCents(row: string[], cols: ColumnMap): number {
     const rawCredit = (row[cols.creditCol] ?? '').trim();
     if (rawCredit) {
       try {
-        credit = parseUnsignedAmount(rawCredit);
+        credit = parseSignedAmount(rawCredit);
       } catch {
         throw new Error(`Non-numeric debit/credit: debit=${row[cols.debitCol]} credit=${row[cols.creditCol]}`);
       }

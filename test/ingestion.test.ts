@@ -315,8 +315,16 @@ describe('bank_sync ingestion', () => {
       const text = 'Date,Description,Debit,Credit\n2024-06-01,Test,(55.20),\n';
       const { header, rows } = parseCsvText(text);
       const cols = detectColumns(header);
-      // Parentheses in debit/credit are stripped (not negated); formula credit - debit = 0 - 55.20 = -55.20
-      assert.strictEqual(parseAmountCents(rows[0], cols), -5520);
+      // Parenthesized debit negates to -55.20; formula credit - debit = 0 - (-55.20) = 55.20 → 5520 cents
+      assert.strictEqual(parseAmountCents(rows[0], cols), 5520);
+    });
+
+    it('parseAmountCents on debit/credit columns with parenthesized credit (20.00)', () => {
+      const text = 'Date,Description,Debit,Credit\n2024-06-01,Test,,(20.00)\n';
+      const { header, rows } = parseCsvText(text);
+      const cols = detectColumns(header);
+      // Parenthesized credit negates to -20.00; formula credit - debit = -20.00 - 0 = -20.00 → -2000 cents
+      assert.strictEqual(parseAmountCents(rows[0], cols), -2000);
     });
 
     it('throws "Non-numeric amount" for non-numeric, non-parenthesized values (regression check)', () => {
