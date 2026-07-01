@@ -1,0 +1,7 @@
+{
+  "name": "bank_sync",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

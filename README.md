@@ -246,6 +246,64 @@ Transaction is imbalanced: sum of amounts is 50 (not zero)
 
 The transaction is rejected, nothing is written, and the anomaly is logged.
 
+## Ingestion: Manual Entry and CSV Import (Issue #2)
+
+The `bank_sync` extension adds two tools on top of the ledger for getting transactions in:
+`log_transaction` (single confirmed conversational entry) and `import_csv` (bulk bank/card CSV
+import). Both post real, balanced double-entry transactions against the source account and an
+auto-created `Expenses:Uncategorized` / `Income:Uncategorized` account (categorization is issue
+#4's job). Put source CSV files in `data/inbox/`.
+
+#### `log_transaction`
+Post a single confirmed transaction. Amount is major-unit and signed, same convention as
+`post_transaction`: negative = money out (expense), positive = money in (income).
+
+**Example prompt:**
+```
+log a transaction: $42 at Trader Joe's yesterday, from checking
+```
+
+The agent restates the parsed date/amount/payee/account and confirms with you before calling the
+tool — there is no separate preview/draft step.
+
+**Duplicate handling:** if a likely duplicate is found (same account, same amount, date within
+3 days, fuzzy-matching description), the tool blocks and names the matched transaction:
+```
+Likely duplicate of existing transaction 12 (2024-06-29, Trader Joes 123 Seattle). Re-call with
+force: true if the user confirms this is not a duplicate.
+```
+Re-call with `force: true` only if you've confirmed with the user it isn't a duplicate.
+
+#### `import_csv`
+Bulk-import a bank/card CSV export.
+
+**Example prompt:**
+```
+import the CSV at data/inbox/chase_march.csv into Assets:Checking
+```
+
+**Behavior:**
+- Columns are auto-detected: date (`Date`, `Posted Date`, `Transaction Date`), amount (`Amount`,
+  or separate `Debit`/`Credit`), description (`Description`, `Payee`, `Name`, `Memo`). Pass
+  `date_column`/`amount_column`/`debit_column`/`credit_column`/`description_column` overrides only
+  if auto-detection fails.
+- Every valid row posts as an uncategorized entry.
+- Likely-duplicate rows are skipped by default and reported in `skipped_duplicates` with the
+  matched transaction id — never silently dropped. Re-run with `force_duplicates: true` to post
+  them anyway.
+- Malformed rows (bad date, non-numeric amount, unresolvable account, threshold-blocked) are
+  reported in `errors` with the row number; the rest of the file still imports.
+- Only whole-file problems (file not found, no recognizable columns and no overrides) raise an
+  error; row-level problems never abort the import.
+
+**Example result:**
+```
+Imported 18 row(s), skipped 2 likely duplicate(s), 1 error(s) out of 21 row(s).
+```
+
+**Re-importing the same file:** every previously-imported row is now a likely duplicate and is
+reported in `skipped_duplicates` instead of being posted again.
+
 ## Unit Tests
 
 Run the comprehensive test suite:
@@ -309,7 +367,14 @@ bookkeeping-agent/
 │       │   ├── schema.ts                  # DDL + default chart + types
 │       │   ├── money.ts                   # Major<->minor unit helpers
 │       │   └── policy.ts                  # Threshold + anomaly logging
-│       ├── bank_sync/EXTENSION.md         # Issue #2 skeleton
+│       ├── bank_sync/                     # Issue #2: ingestion (manual entry + CSV import)
+│       │   ├── EXTENSION.md
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── index.ts                   # Pi extension adapter (log_transaction, import_csv)
+│       │   ├── ingestion.ts               # Uncategorized-account posting core
+│       │   ├── dedupe.ts                  # Duplicate detection core
+│       │   └── csv.ts                     # CSV parsing core
 │       ├── receipt_ocr/EXTENSION.md       # Issue #3 skeleton
 │       ├── categorization/EXTENSION.md    # Issue #4 skeleton
 │       ├── reconciliation/EXTENSION.md    # Future skeleton
@@ -317,7 +382,8 @@ bookkeeping-agent/
 │       └── reporting/EXTENSION.md         # Issue #5 skeleton
 │
 └── test/
-    └── ledger.test.ts                     # Node:test unit tests (33 tests, all passing)
+    ├── ledger.test.ts                     # Node:test unit tests (33 tests, all passing)
+    └── ingestion.test.ts                  # Node:test unit tests for bank_sync
 ```
 
 ## Architecture
@@ -369,7 +435,6 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 
 ## Future Issues
 
-- **Issue #2 (Bank Sync):** Import transactions from bank statements
 - **Issue #3 (Receipt OCR):** Extract transaction data from receipts/invoices
 - **Issue #4 (Categorization):** Auto-categorize transactions using vendor rules
 - **Issue #5 (Reporting):** Generate financial statements and tax exports
