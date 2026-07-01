@@ -328,6 +328,105 @@ describe('Ledger Core Tests', () => {
       });
       assert.strictEqual(balanceAsOf.rawMinor, 10000); // Only first transaction
     });
+
+    it('should include children and filter by asOf date together (regression test for issue #15)', () => {
+      // Create child account (parent Expenses already exists in default chart)
+      createAccount(ledger, { name: 'Expenses:Food' });
+
+      // Post transaction to parent on first date
+      postTransaction(ledger, {
+        date: '2024-01-15',
+        splits: [
+          { account: 'Expenses', amount: 3000 },
+          { account: 'Equity:Owner', amount: -3000 },
+        ],
+      });
+
+      // Post transaction to child on second date
+      postTransaction(ledger, {
+        date: '2024-02-15',
+        splits: [
+          { account: 'Expenses:Food', amount: 2000 },
+          { account: 'Equity:Owner', amount: -2000 },
+        ],
+      });
+
+      // Call getBalance with both asOf and includeChildren
+      // This used to crash with "column index out of range"
+      const balance = getBalance(ledger, {
+        account: 'Expenses',
+        includeChildren: true,
+        asOf: '2024-03-01',
+      });
+
+      // Should sum both parent and child transactions
+      assert.strictEqual(balance.rawMinor, 5000); // 3000 + 2000
+    });
+
+    it('should apply asOf filter correctly when includeChildren is true (boundary test)', () => {
+      // Create child account (parent Expenses already exists in default chart)
+      createAccount(ledger, { name: 'Expenses:Food' });
+
+      // Post transaction to parent on first date
+      postTransaction(ledger, {
+        date: '2024-01-15',
+        splits: [
+          { account: 'Expenses', amount: 3000 },
+          { account: 'Equity:Owner', amount: -3000 },
+        ],
+      });
+
+      // Post transaction to child on second date
+      postTransaction(ledger, {
+        date: '2024-02-15',
+        splits: [
+          { account: 'Expenses:Food', amount: 2000 },
+          { account: 'Equity:Owner', amount: -2000 },
+        ],
+      });
+
+      // Call getBalance with both asOf and includeChildren, but asOf is between the two transactions
+      const balance = getBalance(ledger, {
+        account: 'Expenses',
+        includeChildren: true,
+        asOf: '2024-02-01', // Between the two transactions
+      });
+
+      // Should only include the first transaction (on 2024-01-15)
+      assert.strictEqual(balance.rawMinor, 3000); // Only parent transaction
+    });
+
+    it('should include children with no asOf filter', () => {
+      // Create child account (parent Expenses already exists in default chart)
+      createAccount(ledger, { name: 'Expenses:Food' });
+
+      // Post transaction to parent
+      postTransaction(ledger, {
+        date: '2024-01-15',
+        splits: [
+          { account: 'Expenses', amount: 3000 },
+          { account: 'Equity:Owner', amount: -3000 },
+        ],
+      });
+
+      // Post transaction to child
+      postTransaction(ledger, {
+        date: '2024-02-15',
+        splits: [
+          { account: 'Expenses:Food', amount: 2000 },
+          { account: 'Equity:Owner', amount: -2000 },
+        ],
+      });
+
+      // Call getBalance with includeChildren only, no asOf
+      const balance = getBalance(ledger, {
+        account: 'Expenses',
+        includeChildren: true,
+      });
+
+      // Should sum both parent and child transactions
+      assert.strictEqual(balance.rawMinor, 5000); // 3000 + 2000
+    });
   });
 
   describe('listTransactions', () => {

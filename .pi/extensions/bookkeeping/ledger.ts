@@ -378,37 +378,32 @@ export function getBalance(
   const { account: accountRef, asOf, includeChildren } = opts;
   const acc = resolveAccount(ledger, accountRef);
 
-  // Build the query
+  // Build the query in a single pass
   let sql = `
     SELECT SUM(s.amount) as balance
     FROM splits s
     JOIN transactions t ON s.transaction_id = t.id
-    WHERE s.account_id = ?
+    WHERE
   `;
-  const params: (string | number)[] = [acc.id];
+  const params: (string | number)[] = [];
 
+  // Determine account filter clause
+  if (includeChildren) {
+    // Include descendants by checking parent chain (not recursive, one level only)
+    sql += ` s.account_id IN (
+      SELECT id FROM accounts WHERE id = ? OR parent_id = ?
+    )`;
+    params.push(acc.id, acc.id);
+  } else {
+    // Only this specific account
+    sql += ` s.account_id = ?`;
+    params.push(acc.id);
+  }
+
+  // Append asOf filter if present
   if (asOf) {
     sql += ' AND t.date <= ?';
     params.push(asOf);
-  }
-
-  if (includeChildren) {
-    // Include descendants by checking parent chain
-    // For now, simple approach: also sum all direct children (not recursive)
-    sql = `
-      SELECT SUM(s.amount) as balance
-      FROM splits s
-      JOIN transactions t ON s.transaction_id = t.id
-      WHERE s.account_id IN (
-        SELECT id FROM accounts WHERE id = ? OR parent_id = ?
-      )
-    `;
-    params[0] = acc.id;
-    params.push(acc.id);
-    if (asOf) {
-      sql += ' AND t.date <= ?';
-      params.push(asOf);
-    }
   }
 
   const result = ledger.db
