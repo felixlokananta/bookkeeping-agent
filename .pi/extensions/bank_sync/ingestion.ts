@@ -58,7 +58,9 @@ export interface ResolveCategoryForEntryOpts {
  * payee+memo combination and the resolved account's type matches expectedKind.
  * Otherwise returns null, signaling the caller to fall back to Uncategorized.
  *
- * Throws if the target account cannot be created/resolved (e.g. invalid name).
+ * Never throws: a rule whose target account can't be resolved or created
+ * (e.g. a hand-edited/stale vendor_rules.json entry) falls back to null
+ * rather than crashing ingestion, matching this feature's fallback-first design.
  */
 export function resolveCategoryForEntry(
   ledger: Ledger,
@@ -76,12 +78,17 @@ export function resolveCategoryForEntry(
   }
 
   // Resolve or create the matched account
-  let targetAccount;
+  let targetAccount: Account;
   try {
     targetAccount = resolveAccount(ledger, match.rule.accountName);
   } catch {
-    // Account doesn't exist; create it
-    targetAccount = createAccount(ledger, { name: match.rule.accountName });
+    try {
+      // Account doesn't exist; create it
+      targetAccount = createAccount(ledger, { name: match.rule.accountName });
+    } catch {
+      // Can't create it either (e.g. root account missing, invalid name) — fall back
+      return null;
+    }
   }
 
   // Type-safety check: ensure the account's type matches the expected kind

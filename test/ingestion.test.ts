@@ -561,6 +561,30 @@ describe('bank_sync ingestion', () => {
       assert.strictEqual(diningSplit.amount, 12500);
     });
 
+    it('falls back to Uncategorized when the matched account cannot be created (unknown root)', () => {
+      // Rule points at an account whose root doesn't exist, so createAccount
+      // can't infer a type and throws — resolveCategoryForEntry must swallow
+      // that and fall back to Uncategorized rather than crashing ingestion.
+      let rules = loadRules();
+      rules = upsertRule(rules, 'bogus vendor', 'BogusRoot:Something');
+      rules = upsertRule(rules, 'bogus vendor', 'BogusRoot:Something'); // high confidence
+      saveRules(rules);
+
+      const result = postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: -1000,
+        account: 'Assets:Checking',
+        description: 'Bogus Vendor',
+      });
+      assert.ok('transactionId' in result);
+
+      const uncategorized = resolveAccount(ledger, 'Expenses:Uncategorized');
+      const txns = listTransactions(ledger, { limit: 10 });
+      const splits = txns[0].splits;
+      const uncategorizedSplit = splits.find((s) => s.account_id === uncategorized.id);
+      assert.ok(uncategorizedSplit, 'should have fallen back to Expenses:Uncategorized');
+    });
+
     it('importCsvRows applies high-confidence rules per row and loads rules once', () => {
       // Set up high-confidence rules
       let rules = loadRules();
