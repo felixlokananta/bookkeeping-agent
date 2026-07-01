@@ -20,5 +20,5 @@ memory/session_logs/*
 .DS_Store
 Thumbs.db
 
-# Claude Code session-local lock file
-.claude/scheduled_tasks.lock
+# Claude Code local session/config directory
+.claude/
