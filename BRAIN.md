@@ -61,15 +61,16 @@ an audit trail linking the ledger entry to its source document. Transactions pos
 provided. The path is stored as given (resolved from `cwd`), not validated or moved during posting;
 it is the operator's responsibility to ensure the path is valid and the file is retained.
 
-## File Format Support (Issue #3 — Receipt Capture)
+## File Format Support (Issue #3 — Receipt Capture, Issue #12 — PDF Support)
 
-The `read_receipt` tool supports **image files only:**
-- **Supported:** PNG, JPG, JPEG, GIF, WebP
-- **Not supported (v1):** PDF, and other document/office formats
+The `read_receipt` tool supports **image and PDF files:**
+- **Supported:** PNG, JPG, JPEG, GIF, WebP, PDF (first page only)
+- **Not supported:** Other document/office formats (e.g. DOCX, XLSX)
 
-PDF files are explicitly rejected with a clear "convert to image first" error, not silently
-mis-parsed. Full PDF support (with rasterization) is a deferred follow-up once a usage gap is
-felt in production.
+PDF files are rasterized to PNG using the `pdf-to-img` library. Multi-page PDFs extract the first
+page only; the response includes a note if the PDF has more than one page. Corrupted or
+password-protected PDFs are rejected with a clear error. Other unsupported formats are explicitly
+rejected with a clear error message.
 
 ## Currency and Precision
 

@@ -87,11 +87,11 @@ unchanged (rule 1); a blocked row is surfaced as an error, not retried automatic
 
 The `receipt_ocr` extension adds two receipt/invoice capture tools:
 
-- **`read_receipt`** — Load a receipt or invoice image from disk (PNG, JPG, GIF, WebP only; PDF
-  not yet supported) and return it as vision content for the LLM to read and extract a draft
-  transaction. The agent states the extracted date, total amount, vendor/payee, and line items
-  (if visible) in chat for operator confirmation before posting. Never guess receipt contents
-  from the filename alone.
+- **`read_receipt`** — Load a receipt or invoice image from disk (PNG, JPG, GIF, WebP, or PDF)
+  and return it as vision content for the LLM to read and extract a draft transaction. PDFs are
+  rasterized to PNG (first page only); multi-page PDFs are supported with a note in the response.
+  The agent states the extracted date, total amount, vendor/payee, and line items (if visible)
+  in chat for operator confirmation before posting. Never guess receipt contents from the filename alone.
 - **`capture_receipt`** — Post the operator-confirmed extraction as a balanced double-entry
   transaction against the source account and an auto-created `Expenses:Uncategorized` /
   `Income:Uncategorized` account (same offsetting-account convention as `log_transaction`).
