@@ -6,6 +6,8 @@
   "private": true,
   "dependencies": {
     "@earendil-works/pi-coding-agent": "0.80.2",
+    "@earendil-works/pi-ai": "0.80.2",
+    "typebox": "1.1.38",
     "yaml": "2.4.5"
   },
   "scripts": {
@@ -14,6 +16,8 @@
     "test": "tsx --test test/ledger.test.ts"
   },
   "devDependencies": {
-    "tsx": "^4.22.4"
+    "@types/node": "^26.0.1",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
   }
 }

@@ -433,7 +433,7 @@ export function getBalance(
 export function listAccounts(ledger: Ledger): Account[] {
   return ledger.db
     .prepare('SELECT * FROM accounts ORDER BY name')
-    .all() as Account[];
+    .all() as unknown as Account[];
 }
 
 /**
@@ -479,7 +479,7 @@ export function listTransactions(
 
   const transactions = ledger.db
     .prepare(sql)
-    .all(...params) as Transaction[];
+    .all(...params) as unknown as Transaction[];
 
   // Fetch splits for each transaction
   const withSplits: TransactionWithSplits[] = transactions.map((tx) => {
@@ -488,7 +488,7 @@ export function listTransactions(
         `SELECT id, transaction_id, account_id, amount, memo FROM splits
          WHERE transaction_id = ? ORDER BY id`
       )
-      .all(tx.id) as Split[];
+      .all(tx.id) as unknown as Split[];
     return { ...tx, splits };
   });
 
