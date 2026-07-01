@@ -519,7 +519,7 @@ describe('Categorization Extension Tests', () => {
 
       const afterUncategorized = listUncategorized(ledger);
       assert.strictEqual(afterUncategorized.length, 1);
-      assert.ok(afterUncategorized[0].description.includes('Costco'));
+      assert.ok(afterUncategorized[0].description?.includes('Costco'));
     });
 
     it('should bulk-categorize with kind filter', () => {

@@ -15,10 +15,22 @@ import {
   suggestCategory,
   applyCategory,
   bulkRecategorize,
+  type ApplyCategoryResult,
+  type BulkRecategorizeResult,
 } from './categorize.ts';
 import { loadRules } from './rules.ts';
 
 let ledger: Ledger | null = null;
+
+interface SuggestCategoryDetails {
+  matched: boolean;
+  transactionId: number;
+  accountName?: string;
+  confidence?: 'high' | 'low';
+  explanation?: string;
+}
+
+type ApplyCategoryToolDetails = ApplyCategoryResult | BulkRecategorizeResult;
 
 export default function (pi: ExtensionAPI) {
   pi.on('session_start', async () => {
@@ -138,37 +150,31 @@ export default function (pi: ExtensionAPI) {
       const memo = split.memo || '';
       const suggestion = suggestCategory(payee, memo, rules);
 
-      if (!suggestion.matched) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text:
-                `No learned rule matches transaction ${params.transactionId} ` +
-                `("${payee}"). You must reason over the transaction details and call ` +
-                `\`apply_category\` with your chosen account.`,
-            },
-          ],
-          details: { matched: false, transactionId: params.transactionId },
-        };
+      let text: string;
+      const details: SuggestCategoryDetails = suggestion.matched
+        ? {
+            matched: true,
+            transactionId: params.transactionId,
+            accountName: suggestion.accountName,
+            confidence: suggestion.confidence,
+            explanation: suggestion.explanation,
+          }
+        : { matched: false, transactionId: params.transactionId };
+
+      if (suggestion.matched) {
+        text =
+          `Suggested category for TX ${params.transactionId}: ${suggestion.accountName} ` +
+          `(confidence: ${suggestion.confidence}). ${suggestion.explanation}`;
+      } else {
+        text =
+          `No learned rule matches transaction ${params.transactionId} ` +
+          `("${payee}"). You must reason over the transaction details and call ` +
+          `\`apply_category\` with your chosen account.`;
       }
 
       return {
-        content: [
-          {
-            type: 'text',
-            text:
-              `Suggested category for TX ${params.transactionId}: ${suggestion.accountName} ` +
-              `(confidence: ${suggestion.confidence}). ${suggestion.explanation}`,
-          },
-        ],
-        details: {
-          matched: true,
-          transactionId: params.transactionId,
-          accountName: suggestion.accountName,
-          confidence: suggestion.confidence,
-          explanation: suggestion.explanation,
-        },
+        content: [{ type: 'text', text }],
+        details,
       };
     },
   });
@@ -238,38 +244,31 @@ export default function (pi: ExtensionAPI) {
         throw new Error('Must specify either transactionId or filter');
       }
 
-      if (params.transactionId !== undefined) {
+      let text: string;
+      const details: ApplyCategoryToolDetails =
+        params.transactionId !== undefined
+          ? applyCategory(ledger, params.transactionId, params.accountName)
+          : bulkRecategorize(ledger, params.filter!, params.accountName);
+
+      if ('ruleRecorded' in details) {
         // Single transaction
-        const result = applyCategory(ledger, params.transactionId, params.accountName);
-        return {
-          content: [
-            {
-              type: 'text',
-              text:
-                `Categorized transaction ${result.transactionId} to ${result.newAccountName}. ` +
-                (result.ruleRecorded ? 'Rule recorded for future matching.' : ''),
-            },
-          ],
-          details: result,
-        };
+        text =
+          `Categorized transaction ${details.transactionId} to ${details.newAccountName}. ` +
+          (details.ruleRecorded ? 'Rule recorded for future matching.' : '');
       } else {
         // Bulk categorization
-        const result = bulkRecategorize(ledger, params.filter!, params.accountName);
         const failedText =
-          result.failed.length > 0
-            ? ` ${result.failed.length} failed: ` +
-              result.failed.map((f) => `TX ${f.transactionId} (${f.error})`).join(', ')
+          details.failed.length > 0
+            ? ` ${details.failed.length} failed: ` +
+              details.failed.map((f) => `TX ${f.transactionId} (${f.error})`).join(', ')
             : '';
-        return {
-          content: [
-            {
-              type: 'text',
-              text: `Bulk-categorized ${result.updated} transaction(s) to ${params.accountName}.${failedText}`,
-            },
-          ],
-          details: result,
-        };
+        text = `Bulk-categorized ${details.updated} transaction(s) to ${params.accountName}.${failedText}`;
       }
+
+      return {
+        content: [{ type: 'text', text }],
+        details,
+      };
     },
   });
 }
