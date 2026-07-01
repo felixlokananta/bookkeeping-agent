@@ -453,6 +453,74 @@ describe('Categorization Extension Tests', () => {
       assert.strictEqual(rules[normalizedKey].accountName, 'Expenses:Office Supplies');
       assert.strictEqual(rules[normalizedKey].hits, 1);
     });
+
+    it('should reject moving an expense split to an income account', () => {
+      const { transactionId } = postTransaction(ledger, {
+        date: '2025-07-01',
+        description: 'Office Supplies Purchase',
+        splits: [
+          { account: 'Expenses:Uncategorized', amount: -1500 },
+          { account: 'Assets:Checking', amount: 1500 },
+        ],
+      });
+
+      // Attempt to move the expense split to an income account
+      assert.throws(() => {
+        applyCategory(ledger, transactionId, 'Income:Freelance');
+      }, /type/i);
+
+      // Verify the split's account is unchanged
+      const rows = ledger.db.prepare(
+        `SELECT a.name FROM splits s JOIN accounts a ON s.account_id = a.id WHERE s.transaction_id = ?`
+      ).all(transactionId) as Array<{ name: string }>;
+      const accountNames = rows.map((r) => r.name).sort();
+      assert.deepStrictEqual(accountNames, ['Assets:Checking', 'Expenses:Uncategorized']);
+    });
+
+    it('should reject moving an expense split to an asset account', () => {
+      const { transactionId } = postTransaction(ledger, {
+        date: '2025-07-01',
+        description: 'Office Supplies Purchase',
+        splits: [
+          { account: 'Expenses:Uncategorized', amount: -1500 },
+          { account: 'Assets:Checking', amount: 1500 },
+        ],
+      });
+
+      // Attempt to move the expense split to an asset account
+      assert.throws(() => {
+        applyCategory(ledger, transactionId, 'Assets:Checking');
+      }, /type/i);
+
+      // Verify the split's account is unchanged
+      const rows = ledger.db.prepare(
+        `SELECT a.name FROM splits s JOIN accounts a ON s.account_id = a.id WHERE s.transaction_id = ?`
+      ).all(transactionId) as Array<{ name: string }>;
+      const accountNames = rows.map((r) => r.name).sort();
+      assert.deepStrictEqual(accountNames, ['Assets:Checking', 'Expenses:Uncategorized']);
+    });
+
+    it('should not record a rule when type check fails', () => {
+      const { transactionId } = postTransaction(ledger, {
+        date: '2025-07-01',
+        description: 'Office Supplies Purchase',
+        splits: [
+          { account: 'Expenses:Uncategorized', amount: -1500 },
+          { account: 'Assets:Checking', amount: 1500 },
+        ],
+      });
+
+      // Attempt to move the expense split to an income account (will fail type check)
+      try {
+        applyCategory(ledger, transactionId, 'Income:Freelance');
+      } catch {
+        // Expected to throw
+      }
+
+      // Verify no rule was recorded
+      const rules = loadRules();
+      assert.deepStrictEqual(rules, {});
+    });
   });
 
   describe('bulkRecategorize', () => {

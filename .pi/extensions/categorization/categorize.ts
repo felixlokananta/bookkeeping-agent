@@ -207,7 +207,7 @@ export function applyCategory(
   // account (whether that's currently Uncategorized, for first-pass
   // categorization, or a real category, for a correction).
   const splitSql = `
-    SELECT s.id, s.account_id, s.amount, a.name
+    SELECT s.id, s.account_id, s.amount, a.name, a.type
     FROM splits s
     JOIN accounts a ON s.account_id = a.id
     WHERE s.transaction_id = ? AND a.type IN ('expense', 'income')
@@ -234,6 +234,13 @@ export function applyCategory(
     // Account doesn't exist; create it
     // Infer type from the root account
     targetAccount = createAccount(ledger, { name: accountRef });
+  }
+
+  // Type safety check: ensure the target account type matches the categorizable split's type
+  if (targetAccount.type !== categorizableSplit.type) {
+    throw new Error(
+      `Cannot categorize an ${categorizableSplit.type} split to account "${targetAccount.name}" of type '${targetAccount.type}'; target must be type '${categorizableSplit.type}'`
+    );
   }
 
   // No-op guard: re-applying the same account shouldn't churn the rule store.
