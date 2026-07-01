@@ -560,4 +560,164 @@ describe('Ledger Core Tests', () => {
       assert.strictEqual(result.limitMinor, 10000);
     });
   });
+
+  describe('Append-only enforcement', () => {
+    beforeEach(() => {
+      createAccount(ledger, { name: 'Assets:Checking' });
+      createAccount(ledger, { name: 'Expenses:Food' });
+      createAccount(ledger, { name: 'Equity:Owner' });
+      process.env.BOOKKEEPING_AUTOPOST_LIMIT = '999999';
+    });
+
+    it('should block direct UPDATE on transactions', () => {
+      // Post a transaction first
+      const result = postTransaction(ledger, {
+        date: '2024-01-01',
+        description: 'Test transaction',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Equity:Owner', amount: -10000 },
+        ],
+      });
+
+      const txnId = result.transactionId;
+
+      // Try to update the transaction via direct SQL
+      assert.throws(() => {
+        ledger.db.exec(`UPDATE transactions SET description = 'Modified' WHERE id = ${txnId}`);
+      }, /append-only.*UPDATE not allowed/i);
+    });
+
+    it('should block direct DELETE on transactions', () => {
+      // Post a transaction first
+      const result = postTransaction(ledger, {
+        date: '2024-01-01',
+        description: 'Test transaction',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Equity:Owner', amount: -10000 },
+        ],
+      });
+
+      const txnId = result.transactionId;
+
+      // Try to delete the transaction via direct SQL
+      assert.throws(() => {
+        ledger.db.exec(`DELETE FROM transactions WHERE id = ${txnId}`);
+      }, /append-only.*DELETE not allowed/i);
+    });
+
+    it('should block direct DELETE on splits', () => {
+      // Post a transaction first
+      const result = postTransaction(ledger, {
+        date: '2024-01-01',
+        description: 'Test transaction',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Equity:Owner', amount: -10000 },
+        ],
+      });
+
+      const splitId = result.splitIds[0];
+
+      // Try to delete a split via direct SQL
+      assert.throws(() => {
+        ledger.db.exec(`DELETE FROM splits WHERE id = ${splitId}`);
+      }, /append-only.*DELETE not allowed/i);
+    });
+
+    it('should block direct UPDATE of amount on splits', () => {
+      // Post a transaction first
+      const result = postTransaction(ledger, {
+        date: '2024-01-01',
+        description: 'Test transaction',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Equity:Owner', amount: -10000 },
+        ],
+      });
+
+      const splitId = result.splitIds[0];
+
+      // Try to update the amount via direct SQL
+      assert.throws(() => {
+        ledger.db.exec(`UPDATE splits SET amount = 20000 WHERE id = ${splitId}`);
+      }, /append-only.*UPDATE of this column not allowed/i);
+    });
+
+    it('should allow UPDATE of account_id on splits (categorization use case)', () => {
+      // Post a transaction first
+      const result = postTransaction(ledger, {
+        date: '2024-01-01',
+        description: 'Test transaction',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Equity:Owner', amount: -10000 },
+        ],
+      });
+
+      const splitId = result.splitIds[0]; // The Assets:Checking split
+      const foodAccountId = resolveAccount(ledger, 'Expenses:Food').id;
+
+      // Update account_id (this is what applyCategory does)
+      ledger.db.exec(
+        `UPDATE splits SET account_id = ${foodAccountId} WHERE id = ${splitId}`
+      );
+
+      // Verify the update was successful by querying the split directly
+      const splitRow = ledger.db.prepare('SELECT account_id FROM splits WHERE id = ?').get(splitId) as { account_id: number };
+      assert.strictEqual(splitRow.account_id, foodAccountId);
+    });
+
+    it('should reject malformed date on postTransaction', () => {
+      assert.throws(() => {
+        postTransaction(ledger, {
+          date: '2024/01/01', // Wrong format
+          splits: [
+            { account: 'Assets:Checking', amount: 10000 },
+            { account: 'Equity:Owner', amount: -10000 },
+          ],
+        });
+      }, /CHECK constraint failed/i);
+    });
+
+    it('should reject another malformed date format on postTransaction', () => {
+      assert.throws(() => {
+        postTransaction(ledger, {
+          date: '2024-1-1', // Missing leading zeros
+          splits: [
+            { account: 'Assets:Checking', amount: 10000 },
+            { account: 'Equity:Owner', amount: -10000 },
+          ],
+        });
+      }, /CHECK constraint failed/i);
+    });
+
+    it('should reject non-date string on postTransaction', () => {
+      assert.throws(() => {
+        postTransaction(ledger, {
+          date: 'not-a-date',
+          splits: [
+            { account: 'Assets:Checking', amount: 10000 },
+            { account: 'Equity:Owner', amount: -10000 },
+          ],
+        });
+      }, /CHECK constraint failed/i);
+    });
+
+    it('should allow well-formed date on postTransaction', () => {
+      const result = postTransaction(ledger, {
+        date: '2024-01-01',
+        description: 'Valid transaction',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Equity:Owner', amount: -10000 },
+        ],
+      });
+
+      assert.ok(result.transactionId);
+      const txns = listTransactions(ledger, { limit: 1 });
+      assert.strictEqual(txns[0].date, '2024-01-01');
+    });
+  });
 });
