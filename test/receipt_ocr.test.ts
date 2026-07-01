@@ -353,6 +353,117 @@ describe('Receipt OCR: image loading and posting', () => {
       // postTransaction stores `sourcePath || null`, so an empty string becomes null, not ''
       assert.strictEqual(txn.source_path, null);
     });
+
+    // Test duplicate detection (scenario 1: same receipt posted twice)
+    it('should block duplicate when same receipt is posted twice', () => {
+      // Post the first receipt
+      const result1 = postReceiptEntry(ledger, {
+        date: '2026-09-01',
+        amountMinor: -8000, // $80.00 expense (unique amount to avoid cross-test collisions)
+        account: 'Assets:TestBank',
+        payee: 'Duplicate Test Coffee Shop',
+        memo: 'Test duplicate scenario',
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'high',
+      });
+
+      assert.ok('transactionId' in result1);
+      const firstTxId = result1.transactionId;
+      const firstTxCount = listTransactions(ledger, { limit: 100 }).length;
+
+      // Post the identical receipt again
+      const result2 = postReceiptEntry(ledger, {
+        date: '2026-09-01',
+        amountMinor: -8000,
+        account: 'Assets:TestBank',
+        payee: 'Duplicate Test Coffee Shop',
+        memo: 'Test duplicate scenario',
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'high',
+      });
+
+      // Should return duplicate, not transactionId
+      assert.ok('duplicate' in result2);
+      assert.strictEqual(result2.duplicate.transactionId, firstTxId);
+      assert.strictEqual(result2.duplicate.date, '2026-09-01');
+
+      // Verify no new transaction was created
+      const secondTxCount = listTransactions(ledger, { limit: 100 }).length;
+      assert.strictEqual(secondTxCount, firstTxCount);
+    });
+
+    // Test duplicate detection (scenario 2: receipt matches existing CSV-imported entry)
+    it('should detect duplicate when receipt matches a CSV-imported transaction on same account/amount/date', () => {
+      // Create the target account for the CSV-imported entry
+      createAccount(ledger, { name: 'Expenses:Food:Dining', type: 'expense' });
+
+      // Simulate a CSV-imported entry by posting directly via postTransaction
+      const csvResult = postTransaction(ledger, {
+        date: '2026-09-02',
+        description: 'Existing CSV Vendor',
+        splits: [
+          { account: 'Assets:TestBank', amount: -7500 }, // $75.00 expense
+          { account: 'Expenses:Food:Dining', amount: 7500 },
+        ],
+      });
+
+      assert.ok('transactionId' in csvResult);
+      const csvTxId = csvResult.transactionId;
+      const countBeforeReceipt = listTransactions(ledger, { limit: 100 }).length;
+
+      // Now attempt to capture the same transaction as a receipt
+      const receiptResult = postReceiptEntry(ledger, {
+        date: '2026-09-02',
+        amountMinor: -7500, // Same amount as CSV entry
+        account: 'Assets:TestBank',
+        payee: 'Existing CSV Vendor', // Fuzzy match on description
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'high',
+      });
+
+      // Should detect the duplicate (fuzzy match on vendor name)
+      assert.ok('duplicate' in receiptResult);
+      assert.strictEqual(receiptResult.duplicate.transactionId, csvTxId);
+
+      // Verify no new transaction was created
+      const countAfterReceipt = listTransactions(ledger, { limit: 100 }).length;
+      assert.strictEqual(countAfterReceipt, countBeforeReceipt);
+    });
+
+    // Test duplicate detection (scenario 3: force: true overrides duplicate block)
+    it('should post duplicate receipt with force: true, returning transactionId', () => {
+      // Post the first receipt
+      const result1 = postReceiptEntry(ledger, {
+        date: '2026-09-03',
+        amountMinor: -6000, // $60.00 expense
+        account: 'Assets:TestBank',
+        payee: 'Forced Duplicate Vendor',
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'high',
+      });
+
+      assert.ok('transactionId' in result1);
+      const firstTxCount = listTransactions(ledger, { limit: 100 }).length;
+
+      // Post the identical receipt again with force: true
+      const result2 = postReceiptEntry(ledger, {
+        date: '2026-09-03',
+        amountMinor: -6000,
+        account: 'Assets:TestBank',
+        payee: 'Forced Duplicate Vendor',
+        sourcePath: 'test/fixtures/receipt.png',
+        confidence: 'high',
+        force: true, // Override the duplicate block
+      });
+
+      // Should succeed and return transactionId, not duplicate
+      assert.ok('transactionId' in result2);
+      assert.ok('splitIds' in result2);
+
+      // Verify a new transaction was created
+      const secondTxCount = listTransactions(ledger, { limit: 100 }).length;
+      assert.strictEqual(secondTxCount, firstTxCount + 1);
+    });
   });
 
   // Teardown: close ledger after all tests

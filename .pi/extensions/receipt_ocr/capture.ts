@@ -11,6 +11,7 @@ import { resizeImage } from '@earendil-works/pi-coding-agent';
 import { pdf } from 'pdf-to-img';
 import { postTransaction, type Ledger } from '../bookkeeping/ledger.ts';
 import { ensureUncategorizedAccount, type UncategorizedKind } from '../bank_sync/ingestion.ts';
+import { findLikelyDuplicates, type DuplicateMatch } from '../bank_sync/dedupe.ts';
 
 /**
  * Supported image MIME types and their file extensions.
@@ -134,13 +135,15 @@ export interface PostReceiptEntryOptions {
   sourcePath: string; // path to the receipt image
   confidence: 'high' | 'low';
   uncertainFields?: string[];
-  force?: boolean; // override low-confidence block
+  force?: boolean; // override low-confidence and duplicate blocks
   approved?: boolean; // override auto-post threshold gate
+  windowDays?: number; // duplicate detection date window (default: 3 days)
 }
 
 export type PostReceiptEntryResult =
   | { transactionId: number; splitIds: number[] }
-  | { lowConfidence: string[] };
+  | { lowConfidence: string[] }
+  | { duplicate: DuplicateMatch };
 
 /**
  * Post a receipt entry as a balanced two-split transaction against
@@ -149,6 +152,9 @@ export type PostReceiptEntryResult =
  *
  * Confidence gate: if confidence === 'low' && !force, returns { lowConfidence }
  * without posting, naming which fields are uncertain.
+ *
+ * Duplicate gate: if !force, checks for likely duplicates (same account, amount,
+ * date window, fuzzy description match) and returns { duplicate } if found.
  *
  * Re-throws postTransaction errors (imbalance/threshold) unchanged.
  */
@@ -167,6 +173,7 @@ export function postReceiptEntry(
     uncertainFields,
     force,
     approved,
+    windowDays,
   } = opts;
 
   // Confidence gate: block low-confidence posts unless forced
@@ -174,6 +181,20 @@ export function postReceiptEntry(
     return {
       lowConfidence: uncertainFields ?? ['unspecified'],
     };
+  }
+
+  // Duplicate gate: block duplicate posts unless forced
+  if (!force) {
+    const duplicates = findLikelyDuplicates(ledger, {
+      account,
+      amountMinor,
+      date,
+      description: payee,
+      windowDays,
+    });
+    if (duplicates.length > 0) {
+      return { duplicate: duplicates[0] };
+    }
   }
 
   // Determine the offsetting Uncategorized account kind
