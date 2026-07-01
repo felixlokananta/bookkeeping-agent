@@ -3,15 +3,17 @@
  * Handles listing uncategorized transactions, suggesting categories, and applying them.
  */
 
-import type { Ledger, TransactionWithSplits } from '../bookkeeping/ledger.ts';
-import {
-  listTransactions,
-  resolveAccount,
-  createAccount,
-  postTransaction,
-} from '../bookkeeping/ledger.ts';
+import type { Ledger } from '../bookkeeping/ledger.ts';
+import { resolveAccount, createAccount } from '../bookkeeping/ledger.ts';
 import type { Rules, Rule } from './rules.ts';
-import { normalizePayee, matchRule, loadRules, saveRules, upsertRule } from './rules.ts';
+import {
+  normalizePayee,
+  matchRule,
+  loadRules,
+  saveRules,
+  upsertRule,
+  extractVendorPattern,
+} from './rules.ts';
 
 /**
  * List uncategorized transactions.
@@ -156,12 +158,23 @@ export function suggestCategory(
 
 /**
  * Apply a category to a transaction.
- * Updates the Uncategorized split's account_id to the target account.
- * Optionally upserts a rule into vendor_rules.json.
+ * Updates the transaction's categorizable split (the one posted against an
+ * expense/income account — Uncategorized or, for a correction, an
+ * already-assigned real category) to point at the target account. Optionally
+ * upserts a rule into vendor_rules.json.
+ *
+ * "Categorizable" is identified by account type (expense/income), not by
+ * name, so this same path handles both first-pass categorization (moving off
+ * Uncategorized) and later corrections (moving off a previously-assigned
+ * category) — a transaction never has more than one such split in the
+ * ingestion patterns this extension targets (one expense/income leg, one
+ * asset/liability source leg).
  *
  * Throws if:
  * - Transaction not found
- * - Transaction has no Uncategorized split
+ * - Transaction has no expense/income split to categorize
+ * - Transaction has more than one expense/income split (ambiguous — a
+ *   multi-way split transaction isn't supported by this tool)
  * - Target account cannot be resolved/created
  */
 export interface ApplyCategoryOpts {
@@ -190,22 +203,28 @@ export function applyCategory(
     throw new Error(`Transaction ${transactionId} not found`);
   }
 
-  // Find the Uncategorized split
+  // Find the categorizable split: the leg posted against an expense/income
+  // account (whether that's currently Uncategorized, for first-pass
+  // categorization, or a real category, for a correction).
   const splitSql = `
     SELECT s.id, s.account_id, s.amount, a.name
     FROM splits s
     JOIN accounts a ON s.account_id = a.id
-    WHERE s.transaction_id = ? AND (a.name = ? OR a.name = ?)
+    WHERE s.transaction_id = ? AND a.type IN ('expense', 'income')
   `;
-  const uncategorizedSplit = ledger.db.prepare(splitSql).get(
-    transactionId,
-    'Expenses:Uncategorized',
-    'Income:Uncategorized'
-  ) as any;
+  const candidateSplits = ledger.db.prepare(splitSql).all(transactionId) as any[];
 
-  if (!uncategorizedSplit) {
-    throw new Error(`Transaction ${transactionId} has no Uncategorized split`);
+  if (candidateSplits.length === 0) {
+    throw new Error(`Transaction ${transactionId} has no expense/income split to categorize`);
   }
+  if (candidateSplits.length > 1) {
+    const ids = candidateSplits.map((s) => s.id).join(', ');
+    throw new Error(
+      `Transaction ${transactionId} has multiple expense/income splits (ids: ${ids}); ` +
+        'ambiguous, not supported by apply_category'
+    );
+  }
+  const categorizableSplit = candidateSplits[0];
 
   // Resolve or create the target account
   let targetAccount;
@@ -217,23 +236,35 @@ export function applyCategory(
     targetAccount = createAccount(ledger, { name: accountRef });
   }
 
+  // No-op guard: re-applying the same account shouldn't churn the rule store.
+  if (categorizableSplit.account_id === targetAccount.id) {
+    return {
+      transactionId,
+      splitId: categorizableSplit.id,
+      newAccountName: targetAccount.name,
+      ruleRecorded: false,
+    };
+  }
+
   // Update the split's account_id
   const updateSql = `UPDATE splits SET account_id = ? WHERE id = ?`;
-  ledger.db.prepare(updateSql).run(targetAccount.id, uncategorizedSplit.id);
+  ledger.db.prepare(updateSql).run(targetAccount.id, categorizableSplit.id);
 
-  // Optionally record/upsert a rule
+  // Optionally record/upsert a rule, keyed on a generalized vendor pattern
+  // (not the raw description) so repeat charges from the same vendor
+  // actually accumulate hits instead of each producing a distinct pattern.
   let ruleRecorded = false;
   if (recordRule) {
     const rules = loadRules();
     const payee = transaction.description || '';
-    upsertRule(rules, payee, targetAccount.name);
+    upsertRule(rules, extractVendorPattern(payee), targetAccount.name);
     saveRules(rules);
     ruleRecorded = true;
   }
 
   return {
     transactionId,
-    splitId: uncategorizedSplit.id,
+    splitId: categorizableSplit.id,
     newAccountName: targetAccount.name,
     ruleRecorded,
   };
@@ -253,9 +284,15 @@ export interface BulkRecategorizeFilter {
   kind?: 'expense' | 'income';
 }
 
+export interface BulkRecategorizeFailure {
+  transactionId: number;
+  error: string;
+}
+
 export interface BulkRecategorizeResult {
   updated: number;
   transactionIds: number[];
+  failed: BulkRecategorizeFailure[];
 }
 
 export function bulkRecategorize(
@@ -267,7 +304,8 @@ export function bulkRecategorize(
   // List uncategorized transactions matching the filter
   const uncategorized = listUncategorized(ledger, { kind: filter.kind, limit: 10000 });
 
-  const updated = [];
+  const updated: number[] = [];
+  const failed: BulkRecategorizeFailure[] = [];
 
   for (const tx of uncategorized) {
     // Filter by payee substring
@@ -290,13 +328,16 @@ export function bulkRecategorize(
       applyCategory(ledger, tx.transactionId, accountRef, opts);
       updated.push(tx.transactionId);
     } catch (err) {
-      // Log but continue with the next transaction
-      console.error(`Failed to categorize transaction ${tx.transactionId}:`, err);
+      failed.push({
+        transactionId: tx.transactionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
   return {
     updated: updated.length,
     transactionIds: updated,
+    failed,
   };
 }

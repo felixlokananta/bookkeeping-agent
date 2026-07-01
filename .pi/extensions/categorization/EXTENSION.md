@@ -28,7 +28,13 @@ Rules are stored in `memory/vendor_rules.json` as a JSON object:
 ```
 
 **Key properties:**
-- **Pattern**: Normalized payee substring (lowercase, punctuation stripped, whitespace collapsed). Rules are keyed by this pattern in `vendor_rules.json`.
+- **Pattern**: A generalized vendor pattern derived from the payee: normalized (lowercase, punctuation
+  stripped, whitespace collapsed), then truncated at the first token containing a digit (order numbers,
+  reference codes, dates), e.g. `"AMAZON.COM #12345"` and `"AMAZON.COM #98765"` both key to
+  `"amazon com"`. Falls back to the full normalized string if the numeric-stripped prefix is under 3
+  characters (e.g. a description starting with a digit). This lets repeat charges from the same vendor
+  accumulate hits under one rule instead of each producing a distinct pattern. Rules are keyed by this
+  pattern in `vendor_rules.json`.
 - **accountName**: The real category account (e.g., `"Expenses:Office Supplies"`).
 - **confidence**: `"high"` (≥2 hits) or `"low"` (1 hit). Signals how reliable the rule is.
 - **hits**: Number of times this rule has been applied (auto-incremented on each matching categorization).
@@ -38,11 +44,11 @@ Rules are stored in `memory/vendor_rules.json` as a JSON object:
 
 ## Design Decisions
 
-1. **Re-categorization = direct in-place update.** No separate `category` column exists — "categorizing" means updating a split's `account_id` away from `Expenses:Uncategorized`/`Income:Uncategorized` to a real leaf account. This is an exception to the append-only hard rule, documented in `AGENTS.md` Hard Rule 7.
+1. **Re-categorization = direct in-place update.** No separate `category` column exists — "categorizing" means updating a transaction's expense/income split's `account_id` to point at a real leaf account. The categorizable split is identified by account *type* (`expense`/`income`), not by name — so the same `apply_category` call handles both first-pass categorization (moving off `Expenses:Uncategorized`/`Income:Uncategorized`) and later corrections (moving off an already-assigned real category). This is an exception to the append-only hard rule, documented in `AGENTS.md` Hard Rule 7. A transaction with more than one expense/income split (a multi-way split) is ambiguous and `apply_category` throws rather than guessing.
 
 2. **Rules live in `memory/vendor_rules.json`** (path overridable via `BOOKKEEPING_VENDOR_RULES_PATH` env var for test isolation), consistent with the `anomaly_log.json` pattern.
 
-3. **Post-hoc only.** Ingestion (`bank_sync/ingestion.ts`) and receipt OCR (`receipt_ocr/capture.ts`) are unchanged. New tools operate over already-posted Uncategorized splits.
+3. **Post-hoc only.** Ingestion (`bank_sync/ingestion.ts`) and receipt OCR (`receipt_ocr/capture.ts`) are unchanged. New tools operate over already-posted transactions.
 
 4. **Agent-assisted fallback:** If no rule matches, `suggest_category` returns `{ matched: false }`, prompting the agent to reason over the transaction context (amount, payee, date, memo) itself — no in-tool LLM inference.
 
@@ -102,7 +108,7 @@ Response:
 
 **Returns:**
 - Single categorization: `{ transactionId, splitId, newAccountName, ruleRecorded: boolean }`
-- Bulk categorization: `{ updated: number, transactionIds: number[] }`
+- Bulk categorization: `{ updated: number, transactionIds: number[], failed: { transactionId: number, error: string }[] }` — a failure on one row (e.g. an account-creation conflict) doesn't abort the batch.
 
 **Single categorization example:**
 ```
@@ -125,14 +131,23 @@ Agent: apply_category {
   accountName: "Expenses:Office Supplies"
 }
 Response:
-  { updated: 3, transactionIds: [42, 45, 47] }
+  { updated: 3, transactionIds: [42, 45, 47], failed: [] }
 ```
+
+**Correction example:**
+```
+User: "Actually, transaction 42 should be Supplies, not Office Supplies."
+Agent: apply_category { transactionId: 42, accountName: "Expenses:Supplies" }
+```
+This re-calls `apply_category` on a transaction that's already categorized — the tool finds its
+expense/income split (now pointing at `Expenses:Office Supplies`) by account type, moves it to
+`Expenses:Supplies`, and overwrites the learned rule accordingly.
 
 ## Rule Learning and Correction
 
 - **First categorization**: When `apply_category` is called on a transaction, a new rule is created with `confidence: "low"` and `hits: 1`.
-- **Subsequent matches**: Each time a transaction with a matching payee is categorized, the rule's `hits` increments and `confidence` escalates to `"high"` once `hits >= 2`.
-- **Correction (re-categorization)**: If a rule's target account is corrected (e.g., a rule previously pointing to Office Supplies is now pointed at Supplies), the rule is overwritten with `hits: 1` and `confidence: "low"` (last-write-wins).
+- **Subsequent matches**: Each time a transaction with a matching vendor pattern is categorized, the rule's `hits` increments and `confidence` escalates to `"high"` once `hits >= 2`.
+- **Correction (re-categorization)**: Re-calling `apply_category` on an already-categorized transaction with a different `accountName` moves its split again and overwrites the rule with `hits: 1` and `confidence: "low"` (last-write-wins).
 
 ## Implementation Files
 
@@ -145,7 +160,7 @@ Response:
 ## Risks and Gotchas
 
 - **Two SQLite connections (WAL-safe):** The categorization extension opens its own ledger handle, same as `bank_sync` and `receipt_ocr`. This is a known-safe pattern under WAL mode.
-- **In-place mutation is a narrow exception:** Direct `account_id` updates are only applied to `Expenses:Uncategorized`/`Income:Uncategorized` splits, never to `amount`/`date`/`description`. This is documented in `AGENTS.md` Hard Rule 7.
+- **In-place mutation is a narrow exception:** Direct `account_id` updates are only applied to a transaction's single expense/income split, never to `amount`/`date`/`description`, and never when a transaction has more than one such split (throws instead of guessing). This is documented in `AGENTS.md` Hard Rule 7.
 - **No fuzzy matching:** Rule matching is hand-rolled normalized-substring matching. Typo-tolerant fuzzy matching is out of scope.
 - **Unbounded rule storage:** `vendor_rules.json` has no size cap; acceptable for v1 in a single-user, single-repo scope.
 

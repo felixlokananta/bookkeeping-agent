@@ -8,8 +8,8 @@
 
 import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
-import { openLedger, closeLedger, type Ledger, resolveAccount } from '../bookkeeping/ledger.ts';
-import { toMajor } from '../bookkeeping/money.ts';
+import { openLedger, closeLedger, type Ledger } from '../bookkeeping/ledger.ts';
+import { formatMoney } from '../bookkeeping/money.ts';
 import {
   listUncategorized,
   suggestCategory,
@@ -76,7 +76,7 @@ export default function (pi: ExtensionAPI) {
           .map(
             (tx) =>
               `  - [TX ${tx.transactionId}] ${tx.date}: "${tx.description || '(no description)'}" ` +
-              `($${(tx.amount / 100).toFixed(2)}) in ${tx.accountName}`
+              `($${formatMoney(tx.amount)}) in ${tx.accountName}`
           )
           .join('\n');
 
@@ -255,11 +255,16 @@ export default function (pi: ExtensionAPI) {
       } else {
         // Bulk categorization
         const result = bulkRecategorize(ledger, params.filter!, params.accountName);
+        const failedText =
+          result.failed.length > 0
+            ? ` ${result.failed.length} failed: ` +
+              result.failed.map((f) => `TX ${f.transactionId} (${f.error})`).join(', ')
+            : '';
         return {
           content: [
             {
               type: 'text',
-              text: `Bulk-categorized ${result.updated} transaction(s) to ${params.accountName}.`,
+              text: `Bulk-categorized ${result.updated} transaction(s) to ${params.accountName}.${failedText}`,
             },
           ],
           details: result,

@@ -107,12 +107,15 @@ The `categorization` extension adds three categorization tools that auto-assign 
   returns `{ matched: false }`, signaling the agent to reason over the transaction details
   (payee, amount, date, memo) and make its own judgment.
 
-- **`apply_category`** — Categorize a single transaction or bulk-categorize a filtered batch.
-  Single mode: pass `transactionId`. Bulk mode: pass `filter` (payee substring, optional max
-  amount, optional kind) and `accountName`. In both cases, updates the split's `account_id`
-  and records (or updates) a learned rule in `memory/vendor_rules.json` keyed on the transaction's
-  payee (normalized: lowercase, punctuation stripped). If the target account does not exist,
-  it is auto-created via colon-path.
+- **`apply_category`** — Categorize a single transaction (whether currently Uncategorized or
+  already categorized — re-calling this on an already-categorized transaction is how corrections
+  are made) or bulk-categorize a filtered batch. Single mode: pass `transactionId`. Bulk mode: pass
+  `filter` (payee substring, optional max amount, optional kind) and `accountName`. In both cases,
+  updates the transaction's expense/income split's `account_id` and records (or updates) a learned
+  rule in `memory/vendor_rules.json` keyed on a generalized vendor pattern derived from the
+  transaction's payee (normalized: lowercase, punctuation stripped, trailing order/reference
+  numbers dropped so repeat charges from the same vendor share a pattern). If the target account
+  does not exist, it is auto-created via colon-path.
 
 **Example conversational flow (bulk recategorization):**
 

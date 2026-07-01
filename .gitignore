@@ -19,3 +19,6 @@ memory/session_logs/*
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code session-local lock file
+.claude/scheduled_tasks.lock

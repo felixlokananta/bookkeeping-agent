@@ -405,8 +405,11 @@ No learned rule matches transaction 42. You must reason over the transaction det
 
 #### `apply_category`
 Categorize a single transaction or bulk-categorize a filtered batch of transactions. Updates the
-split from `Expenses:Uncategorized` / `Income:Uncategorized` to a real category account and
-records/updates a learned rule in `memory/vendor_rules.json`.
+transaction's expense/income split to point at a real category account and records/updates a
+learned rule in `memory/vendor_rules.json`. Works whether the split currently points at
+`Expenses:Uncategorized`/`Income:Uncategorized` (first-pass categorization) or an already-assigned
+real category — re-calling `apply_category` with a different `accountName` on an already-categorized
+transaction is how you correct it.
 
 **Example prompt (single):**
 ```
@@ -432,9 +435,15 @@ apply_category {
 ```
 
 **Behavior:**
-- Single categorization: moves one split and records a rule.
-- Bulk categorization: moves multiple matching splits and records/updates the rule.
+- Single categorization: moves one split and records a rule. Re-calling on an already-categorized
+  transaction with a different `accountName` corrects it (moves the split again).
+- Bulk categorization: moves multiple matching splits and records/updates the rule; per-row failures
+  (e.g. an account-creation conflict) don't abort the batch and are reported in `failed`.
 - If the target account does not exist, it is auto-created via colon-path (e.g., `"Expenses:Office Supplies"`).
+- Rules are keyed on a generalized vendor pattern derived from the payee — normalized (lowercase,
+  punctuation stripped) with trailing order/reference numbers dropped (e.g. `"AMAZON.COM #12345"`
+  and `"AMAZON.COM #98765"` both key to `"amazon com"`), so repeat charges from the same vendor
+  actually accumulate hits instead of each producing a distinct one-off pattern.
 - Rules are learned on first application (`confidence: "low"`, `hits: 1`).
 - Subsequent matching categorizations increment `hits` and escalate `confidence` to `"high"` once `hits >= 2`.
 - Correcting a category (re-categorizing to a different account) overwrites the rule with `hits: 1` and `confidence: "low"` (last-write-wins).

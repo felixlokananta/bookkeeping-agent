@@ -27,6 +27,7 @@ import {
   loadRules,
   saveRules,
   upsertRule,
+  extractVendorPattern,
   type Rules,
 } from '../.pi/extensions/categorization/rules.ts';
 
@@ -164,6 +165,18 @@ describe('Categorization Extension Tests', () => {
       rules = upsertRule(rules, 'amazon', 'Expenses:Office Supplies');
       assert.strictEqual(rules['amazon'].hits, 3);
       assert.strictEqual(rules['amazon'].confidence, 'high');
+    });
+
+    it('extractVendorPattern should strip trailing order numbers/reference codes', () => {
+      assert.strictEqual(extractVendorPattern('AMAZON.COM #12345'), 'amazon com');
+      assert.strictEqual(extractVendorPattern('AMAZON.COM #98765'), 'amazon com');
+      assert.strictEqual(extractVendorPattern("TRADER JOE'S 123 SEATTLE WA"), 'trader joe s');
+      assert.strictEqual(extractVendorPattern('Walmart'), 'walmart');
+    });
+
+    it('extractVendorPattern should fall back to the full normalized string if the prefix is too short', () => {
+      // Starts with a digit -> no non-numeric prefix tokens -> fall back
+      assert.strictEqual(extractVendorPattern('123 Main St Purchase'), '123 main st purchase');
     });
 
     it('should reset hits to 1 when correcting a rule to a different account', () => {
@@ -365,7 +378,24 @@ describe('Categorization Extension Tests', () => {
       }, /Transaction 9999 not found/);
     });
 
-    it('should throw if the transaction has no Uncategorized split', () => {
+    it('should throw if the transaction has no expense/income split', () => {
+      // Assets:Checking -> Assets:Checking-style transfer, no expense/income leg at all
+      createAccount(ledger, { name: 'Assets:Savings' });
+      const { transactionId } = postTransaction(ledger, {
+        date: '2025-07-01',
+        description: 'Transfer to savings',
+        splits: [
+          { account: 'Assets:Savings', amount: 1000 },
+          { account: 'Assets:Checking', amount: -1000 },
+        ],
+      });
+
+      assert.throws(() => {
+        applyCategory(ledger, transactionId, 'Expenses:Other Supplies');
+      }, /has no expense\/income split/);
+    });
+
+    it('should re-categorize an already-categorized transaction (correction)', () => {
       const { transactionId } = postTransaction(ledger, {
         date: '2025-07-01',
         description: 'Already categorized',
@@ -375,9 +405,30 @@ describe('Categorization Extension Tests', () => {
         ],
       });
 
+      const result = applyCategory(ledger, transactionId, 'Expenses:Supplies');
+      assert.strictEqual(result.newAccountName, 'Expenses:Supplies');
+
+      const rows = ledger.db.prepare(
+        `SELECT a.name FROM splits s JOIN accounts a ON s.account_id = a.id WHERE s.transaction_id = ?`
+      ).all(transactionId) as Array<{ name: string }>;
+      const accountNames = rows.map((r) => r.name).sort();
+      assert.deepStrictEqual(accountNames, ['Assets:Checking', 'Expenses:Supplies']);
+    });
+
+    it('should throw if the transaction has multiple expense/income splits', () => {
+      const { transactionId } = postTransaction(ledger, {
+        date: '2025-07-01',
+        description: 'Multi-way split',
+        splits: [
+          { account: 'Expenses:Office Supplies', amount: -600 },
+          { account: 'Expenses:Entertainment', amount: -400 },
+          { account: 'Assets:Checking', amount: 1000 },
+        ],
+      });
+
       assert.throws(() => {
-        applyCategory(ledger, transactionId, 'Expenses:Other Supplies');
-      }, /has no Uncategorized split/);
+        applyCategory(ledger, transactionId, 'Expenses:Supplies');
+      }, /multiple expense\/income splits/);
     });
 
     it('should record a rule in vendor_rules.json', () => {
@@ -393,7 +444,9 @@ describe('Categorization Extension Tests', () => {
       applyCategory(ledger, transactionId, 'Expenses:Office Supplies');
 
       const rules = loadRules();
-      assert.ok('amazon com 123456' in rules || 'amazon' in rules);
+      // The trailing order-number token ("123456") is stripped so the
+      // pattern generalizes across repeat AMAZON.COM charges.
+      assert.ok('amazon com' in rules);
       const normalizedKey = Object.keys(rules)[0];
       assert.strictEqual(rules[normalizedKey].accountName, 'Expenses:Office Supplies');
       assert.strictEqual(rules[normalizedKey].hits, 1);
@@ -513,7 +566,7 @@ describe('Categorization Extension Tests', () => {
       assert.strictEqual(rules[ruleKey].hits, 1);
     });
 
-    it('should increment hits when a learned rule is applied again', () => {
+    it('should increment hits when a learned rule is applied again, even with a different order number', () => {
       // Post and categorize first transaction
       const { transactionId: tx1 } = postTransaction(ledger, {
         date: '2025-07-01',
@@ -526,16 +579,19 @@ describe('Categorization Extension Tests', () => {
 
       applyCategory(ledger, tx1, 'Expenses:Office Supplies');
 
-      // Verify rule has hits=1
+      // Verify rule has hits=1, keyed on the vendor prefix (order number stripped)
       let rules = loadRules();
-      const ruleKey = Object.keys(rules)[0];
+      assert.ok('amazon com' in rules);
+      const ruleKey = 'amazon com';
       assert.strictEqual(rules[ruleKey].hits, 1);
       assert.strictEqual(rules[ruleKey].confidence, 'low');
 
-      // Post and categorize second transaction with same payee (will match and increment the same rule)
+      // Post and categorize a second transaction from the same vendor but with a
+      // *different* order number — real-world repeat charges rarely share the
+      // exact same description, so the pattern must generalize past it.
       const { transactionId: tx2 } = postTransaction(ledger, {
         date: '2025-07-02',
-        description: 'AMAZON.COM #12345',
+        description: 'AMAZON.COM #98765',
         splits: [
           { account: 'Expenses:Uncategorized', amount: -2000 },
           { account: 'Assets:Checking', amount: 2000 },
@@ -567,32 +623,20 @@ describe('Categorization Extension Tests', () => {
       const ruleKey = Object.keys(rules)[0];
       assert.strictEqual(rules[ruleKey].accountName, 'Expenses:Office Supplies');
 
-      // Correction: re-categorize to different account
-      // Note: We need to reload the split because it's been moved
-      const splitSql = `
-        SELECT s.id, s.account_id FROM splits s
-        WHERE s.transaction_id = ? AND s.account_id != ?
-      `;
-      const row = ledger.db.prepare(splitSql).get(tx1, 1) as any;
+      // Correction: re-categorize the same (now-categorized) transaction to a
+      // different account, through the real apply_category path.
+      applyCategory(ledger, tx1, 'Expenses:Supplies');
 
-      if (row && row.account_id !== 1) {
-        // Move back to Uncategorized first (simulate "undo")
-        const uncategorizedId = ledger.db.prepare(
-          `SELECT id FROM accounts WHERE name = ?`
-        ).get('Expenses:Uncategorized') as any;
-        ledger.db.prepare(`UPDATE splits SET account_id = ? WHERE id = ?`).run(
-          uncategorizedId.id,
-          row.id
-        );
+      rules = loadRules();
+      assert.strictEqual(rules[ruleKey].accountName, 'Expenses:Supplies');
+      assert.strictEqual(rules[ruleKey].hits, 1);
+      assert.strictEqual(rules[ruleKey].confidence, 'low');
 
-        // Now apply correction
-        applyCategory(ledger, tx1, 'Expenses:Supplies');
-
-        rules = loadRules();
-        assert.strictEqual(rules[ruleKey].accountName, 'Expenses:Supplies');
-        assert.strictEqual(rules[ruleKey].hits, 1);
-        assert.strictEqual(rules[ruleKey].confidence, 'low');
-      }
+      // Verify the split itself actually moved to the corrected account.
+      const rows = ledger.db.prepare(
+        `SELECT a.name FROM splits s JOIN accounts a ON s.account_id = a.id WHERE s.transaction_id = ?`
+      ).all(tx1) as Array<{ name: string }>;
+      assert.deepStrictEqual(rows.map((r) => r.name).sort(), ['Assets:Checking', 'Expenses:Supplies']);
     });
   });
 });

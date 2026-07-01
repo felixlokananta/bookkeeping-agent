@@ -43,6 +43,35 @@ export function normalizePayee(payee: string): string {
 }
 
 /**
+ * Derive a generalizable vendor pattern from a raw transaction description.
+ * Real bank/card descriptions often embed order numbers, reference codes, or
+ * dates (e.g. "AMAZON.COM #12345", "TRADER JOE'S 123 SEATTLE WA") that make
+ * two purchases from the same vendor normalize to different strings if used
+ * verbatim as a rule pattern. This takes the leading run of non-numeric
+ * tokens (the vendor name itself) and drops everything from the first
+ * digit-bearing token onward, so repeat vendor charges share a pattern and
+ * hits accumulate correctly.
+ *
+ * Falls back to the full normalized description if the numeric-stripped
+ * prefix is too short (<3 chars) to be a meaningful pattern (e.g. the
+ * description starts with a digit).
+ */
+export function extractVendorPattern(description: string): string {
+  const normalized = normalizePayee(description);
+  const tokens = normalized.split(' ').filter(Boolean);
+
+  const prefixTokens: string[] = [];
+  for (const token of tokens) {
+    if (/\d/.test(token)) break;
+    prefixTokens.push(token);
+    if (prefixTokens.length >= 4) break;
+  }
+
+  const candidate = prefixTokens.join(' ');
+  return candidate.length >= 3 ? candidate : normalized;
+}
+
+/**
  * Load rules from disk (vendor_rules.json).
  * Path defaults to memory/vendor_rules.json, overridable via BOOKKEEPING_VENDOR_RULES_PATH env var.
  * Returns {} if file doesn't exist.
