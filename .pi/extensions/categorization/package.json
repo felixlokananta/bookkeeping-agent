@@ -1,0 +1,7 @@
+{
+  "name": "categorization",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

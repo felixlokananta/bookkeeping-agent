@@ -40,6 +40,14 @@ Precise, terse, numeric responses. Always cite account paths and amounts exactly
    — never dropped without a trace, and never posted without either operator confirmation or an
    explicit `force` override.
 
+7. **Uncategorized splits' `account_id` may be updated in place; no reversing entry required.**  
+   Categorizing a transaction (moving a split from `Expenses:Uncategorized` or `Income:Uncategorized`
+   to a real category account) is filling in missing classification, not correcting an amount/date.
+   The split's `account_id` is updated directly via `apply_category`; no reversing entry is needed.
+   This is a deliberate exception to Hard Rule 4 (append-only). Corrections to an already-categorized
+   transaction also update `account_id` in place, last-write-wins. Only `account_id` is mutated; the
+   split's amount, date, and description never change in place.
+
 ## Tools (Issue #1)
 
 The agent has five core ledger tools:
@@ -84,3 +92,58 @@ The `receipt_ocr` extension adds two receipt/invoice capture tools:
   blocked unless re-called with `force: true` after operator confirmation (rule 6 above).
 
 Both tools inherit the auto-post threshold gate from `post_transaction` unchanged (rule 1).
+
+## Tools (Issue #4 — Categorization)
+
+The `categorization` extension adds three categorization tools that auto-assign real categories
+(Expenses/* / Income/*) to uncategorized transactions using learned payee-pattern rules:
+
+- **`list_uncategorized`** — Show transactions with splits in `Expenses:Uncategorized` or
+  `Income:Uncategorized`, optionally filtered by kind (expense/income). Each transaction shows
+  date, description, amount, and which Uncategorized account it's in.
+
+- **`suggest_category`** — Look up a transaction and check if a learned vendor rule applies.
+  Returns high/low confidence with the matched pattern and hit count if a rule matches; otherwise
+  returns `{ matched: false }`, signaling the agent to reason over the transaction details
+  (payee, amount, date, memo) and make its own judgment.
+
+- **`apply_category`** — Categorize a single transaction (whether currently Uncategorized or
+  already categorized — re-calling this on an already-categorized transaction is how corrections
+  are made) or bulk-categorize a filtered batch. Single mode: pass `transactionId`. Bulk mode: pass
+  `filter` (payee substring, optional max amount, optional kind) and `accountName`. In both cases,
+  updates the transaction's expense/income split's `account_id` and records (or updates) a learned
+  rule in `memory/vendor_rules.json` keyed on a generalized vendor pattern derived from the
+  transaction's payee (normalized: lowercase, punctuation stripped, trailing order/reference
+  numbers dropped so repeat charges from the same vendor share a pattern). If the target account
+  does not exist, it is auto-created via colon-path.
+
+**Example conversational flow (bulk recategorization):**
+
+```
+User: "Categorize all Amazon charges under $20 as Office Supplies."
+
+Agent (calls suggest_category on an Amazon transaction):
+  "Checking if we have a learned rule for Amazon... No exact rule yet."
+
+Agent (calls list_uncategorized with filter payeeContains: "AMAZON"):
+  "Found 3 uncategorized Amazon charges, all under $20."
+
+Agent (calls apply_category with bulk filter):
+  apply_category {
+    filter: { payeeContains: "AMAZON", maxAmountMinor: 2000 },
+    accountName: "Expenses:Office Supplies"
+  }
+
+Response: { updated: 3, transactionIds: [42, 45, 47] }
+
+Agent: "Categorized 3 transactions to Expenses:Office Supplies. The payee rule is now learned and will suggest this account for future Amazon charges."
+```
+
+**Rule learning and correction:**
+- First categorization: rule created with `confidence: "low"` and `hits: 1`.
+- Subsequent matches: rule's `hits` increments; `confidence` escalates to `"high"` once `hits >= 2`.
+- Correction: if a rule's target account is changed (re-categorized), the rule is overwritten with
+  `hits: 1` and `confidence: "low"` (last-write-wins).
+
+All three tools work post-hoc over already-posted transactions (rule 7 applies: in-place `account_id`
+update, no append-only violation).

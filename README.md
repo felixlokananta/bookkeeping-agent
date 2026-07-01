@@ -366,6 +366,90 @@ the operator confirms: amount is $45.99, payee is Trader Joe's. re-call with for
 path is stored as given. Moving confirmed receipts into `data/processed/` is a possible follow-up
 (not required by v1).
 
+## Categorization (Issue #4)
+
+The `categorization` extension adds three tools for auto-assigning categories (real Expenses/Income
+accounts) to transactions sitting in `Expenses:Uncategorized` / `Income:Uncategorized` using
+payee-pattern rules learned from past corrections.
+
+#### `list_uncategorized`
+Show transactions awaiting categorization, optionally filtered by kind (expense/income).
+
+**Example prompt:**
+```
+show me the uncategorized expenses
+```
+
+**Output:** A list of transactions with date, description, amount, and which Uncategorized account
+they're in.
+
+#### `suggest_category`
+Look up a learned vendor rule for a transaction. Returns high/low confidence with the matched
+pattern if a rule applies; otherwise returns "no match" (agent must reason).
+
+**Example prompt:**
+```
+suggest a category for transaction 42
+```
+
+**Output (rule match):**
+```
+Suggested category for TX 42: Expenses:Office Supplies (confidence: high). Matched pattern "amazon" (4 hits)
+```
+
+**Output (no match):**
+```
+No learned rule matches transaction 42. You must reason over the transaction details and call
+`apply_category` with your chosen account.
+```
+
+#### `apply_category`
+Categorize a single transaction or bulk-categorize a filtered batch of transactions. Updates the
+transaction's expense/income split to point at a real category account and records/updates a
+learned rule in `memory/vendor_rules.json`. Works whether the split currently points at
+`Expenses:Uncategorized`/`Income:Uncategorized` (first-pass categorization) or an already-assigned
+real category — re-calling `apply_category` with a different `accountName` on an already-categorized
+transaction is how you correct it.
+
+**Example prompt (single):**
+```
+that Amazon charge is Office Supplies
+```
+
+The agent calls:
+```
+apply_category { transactionId: 42, accountName: "Expenses:Office Supplies" }
+```
+
+**Example prompt (bulk):**
+```
+categorize all Amazon charges under $20 as Office Supplies
+```
+
+The agent calls:
+```
+apply_category {
+  filter: { payeeContains: "AMAZON", maxAmountMinor: 2000 },
+  accountName: "Expenses:Office Supplies"
+}
+```
+
+**Behavior:**
+- Single categorization: moves one split and records a rule. Re-calling on an already-categorized
+  transaction with a different `accountName` corrects it (moves the split again).
+- Bulk categorization: moves multiple matching splits and records/updates the rule; per-row failures
+  (e.g. an account-creation conflict) don't abort the batch and are reported in `failed`.
+- If the target account does not exist, it is auto-created via colon-path (e.g., `"Expenses:Office Supplies"`).
+- Rules are keyed on a generalized vendor pattern derived from the payee — normalized (lowercase,
+  punctuation stripped) with trailing order/reference numbers dropped (e.g. `"AMAZON.COM #12345"`
+  and `"AMAZON.COM #98765"` both key to `"amazon com"`), so repeat charges from the same vendor
+  actually accumulate hits instead of each producing a distinct one-off pattern.
+- Rules are learned on first application (`confidence: "low"`, `hits: 1`).
+- Subsequent matching categorizations increment `hits` and escalate `confidence` to `"high"` once `hits >= 2`.
+- Correcting a category (re-categorizing to a different account) overwrites the rule with `hits: 1` and `confidence: "low"` (last-write-wins).
+
+All three tools work post-hoc — only over already-posted transactions. Categorization does not edit amounts, dates, or descriptions; only the split's `account_id` is updated (exception to the append-only rule; see `AGENTS.md` hard rule 7).
+
 ## Unit Tests
 
 Run the comprehensive test suite:
@@ -443,7 +527,13 @@ bookkeeping-agent/
 │       │   ├── tsconfig.json
 │       │   ├── index.ts                   # Pi extension adapter (read_receipt, capture_receipt)
 │       │   └── capture.ts                 # Receipt loading + posting core
-│       ├── categorization/EXTENSION.md    # Issue #4 skeleton
+│       ├── categorization/                # Issue #4: auto-categorization using vendor rules
+│       │   ├── EXTENSION.md
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── index.ts                   # Pi extension adapter (list_uncategorized, suggest_category, apply_category)
+│       │   ├── categorize.ts              # Categorization core (list, suggest, apply, bulk)
+│       │   └── rules.ts                   # Rule schema, matching, load/save
 │       ├── reconciliation/EXTENSION.md    # Future skeleton
 │       ├── invoicing/EXTENSION.md         # Future skeleton
 │       └── reporting/EXTENSION.md         # Issue #5 skeleton
@@ -505,7 +595,7 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - **Issue #1:** Ledger core + 5 ledger tools ✓
 - **Issue #2:** Ingestion (manual + CSV import) ✓
 - **Issue #3:** Receipt/invoice capture (image only, PDF unsupported in v1) ✓
-- **Issue #4 (Categorization):** Auto-categorize transactions using vendor rules
+- **Issue #4:** Categorization (auto-categorize transactions using vendor rules) ✓
 - **Issue #5 (Reporting):** Generate financial statements and tax exports
 
 ## References
@@ -516,6 +606,7 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - [.pi/extensions/bookkeeping/EXTENSION.md](./.pi/extensions/bookkeeping/EXTENSION.md) — Ledger tool documentation
 - [.pi/extensions/bank_sync/EXTENSION.md](./.pi/extensions/bank_sync/EXTENSION.md) — Ingestion tool documentation
 - [.pi/extensions/receipt_ocr/EXTENSION.md](./.pi/extensions/receipt_ocr/EXTENSION.md) — Receipt capture tool documentation
+- [.pi/extensions/categorization/EXTENSION.md](./.pi/extensions/categorization/EXTENSION.md) — Categorization tool documentation
 
 ## License
 
