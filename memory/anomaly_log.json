@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "ts": "2026-07-01T08:19:54.431Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T08:20:13.729Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T08:20:48.107Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-01T08:22:58.515Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
+    "magnitudeMinor": 60000,
+    "limitMinor": 50000
+  }
+]

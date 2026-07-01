@@ -1,0 +1,7 @@
+{
+  "name": "receipt_ocr",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}

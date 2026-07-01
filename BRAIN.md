@@ -45,6 +45,26 @@ lowercase/alphanumeric comparison; match if one normalized string contains the o
 share a token of length ≥ 4). This is a heuristic, not exact — matches are always surfaced for
 confirmation rather than silently skipped or silently posted (see `AGENTS.md` hard rule 5).
 
+### Source file reference (Issue #3 — Receipt Capture)
+
+Every transaction has an optional `source_path` column (nullable, stored as `TEXT` in the ledger).
+For transactions posted via `read_receipt` → `capture_receipt`, the `source_path` column retains
+the file path to the original receipt/invoice image (e.g., `data/inbox/receipt1.jpg`), providing
+an audit trail linking the ledger entry to its source document. Transactions posted via
+`post_transaction`, `log_transaction`, or `import_csv` have `source_path = NULL` unless explicitly
+provided. The path is stored as given (resolved from `cwd`), not validated or moved during posting;
+it is the operator's responsibility to ensure the path is valid and the file is retained.
+
+## File Format Support (Issue #3 — Receipt Capture)
+
+The `read_receipt` tool supports **image files only:**
+- **Supported:** PNG, JPG, JPEG, GIF, WebP
+- **Not supported (v1):** PDF, and other document/office formats
+
+PDF files are explicitly rejected with a clear "convert to image first" error, not silently
+mis-parsed. Full PDF support (with rasterization) is a deferred follow-up once a usage gap is
+felt in production.
+
 ## Currency and Precision
 
 - **Base currency:** USD (configurable in `config/settings.yaml`)
