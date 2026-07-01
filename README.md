@@ -30,20 +30,21 @@ This project provides a complete accounting system with:
 
 ### Start the Agent
 
-Run the agent via `npx pi`:
+**Preferred:** run via `scripts/run_agent.sh` (or `npm run agent`), which passes `--no-builtin-tools` so only the 5 ledger tools are exposed:
 
 ```bash
-npx pi
+npm run agent        # bash scripts/run_agent.sh
 ```
 
-Or use the convenience scripts:
+This is both a safety measure (a bookkeeping assistant has no reason to run shell commands or edit arbitrary files) and a reliability fix: some tool-calling models degrade badly once the tool list grows past ~5-6 tools, silently describing a call in plain text instead of invoking it. We verified this against a local vLLM Qwen model — with pi's full built-in toolset (bash/read/edit/write) mixed in, it failed to properly call `list_accounts` in ~2 of 3 tries; restricted to just the 5 ledger tools, it was reliable across repeated tries.
 
-```bash
-npm run pi          # alias for npx pi
-npm run agent       # bash scripts/run_agent.sh
-```
+`npx pi` / `npm run pi` (without `--no-builtin-tools`) still work if you need the coding tools too, but expect lower tool-calling reliability on smaller/local models when you do.
 
 **First run:** You'll see a trust prompt asking to enable the `.pi/extensions/bookkeeping` extension. Accept to proceed. The database will be auto-initialized with the default chart of accounts.
+
+### If tool calls aren't working reliably
+
+If the agent describes a tool call in plain text instead of invoking it (e.g. prints `` `list_accounts` `` or similar instead of returning results), the model likely isn't emitting a structured tool call. To diagnose independent of `pi`, send the same request shape directly to your provider's OpenAI-compatible endpoint with `curl` (`stream: true`, the same `tools` array) and check whether the response has a populated `tool_calls` field or leaks call syntax into plain `content` text. If direct `curl` calls work but `pi` doesn't, suspect prompt/toolset size (see above) before assuming a protocol bug.
 
 ### Core Tools
 
