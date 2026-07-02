@@ -5,6 +5,11 @@ data/*.db
 
 # Node modules
 node_modules/
+web/node_modules/
+web/dist/
+web/*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts
 
 # Session logs (keep the directory)
 memory/session_logs/*
