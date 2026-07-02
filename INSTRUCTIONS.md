@@ -32,7 +32,9 @@ those up later (see §4) or let the agent do it for you as patterns emerge.
 
 ## 2. Bulk-importing a bank statement
 
-Drop a CSV export in `data/inbox/` and point the agent at it. Columns are auto-detected.
+Drop a CSV export in `data/inbox/` and point the agent at it, or upload it directly from the web
+chat UI (upload button or drag-and-drop) — the server saves it to `data/inbox/` for you. Columns
+are auto-detected.
 
 ```
 You: import the CSV at data/inbox/chase_march.csv into Assets:Checking

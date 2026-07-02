@@ -27,9 +27,13 @@ export interface ProcessedImage {
   mimeType: string;
 }
 
+// Requires the filename to actually end in .csv, not just a claimed mimetype
+// — otherwise a client could label an arbitrary file (e.g. "payload.sh")
+// with mimeType: 'text/csv' and have it written to data/inbox/ with its
+// original extension preserved.
 function isCsvAttachment(att: Attachment): boolean {
-  if (SUPPORTED_CSV_MIME_TYPES.has(att.mimeType)) return true;
-  return att.mimeType === '' && att.filename.toLowerCase().endsWith('.csv');
+  if (!att.filename.toLowerCase().endsWith('.csv')) return false;
+  return SUPPORTED_CSV_MIME_TYPES.has(att.mimeType) || att.mimeType === '';
 }
 
 // Mirrors .pi/extensions/receipt_ocr/capture.ts's post-load resizeImage step:
@@ -104,13 +108,18 @@ export async function processAttachments(attachments: Attachment[]): Promise<{ i
     }
 
     if (isCsvAttachment(att)) {
-      const dir = getInboxDir();
-      mkdirSync(dir, { recursive: true });
-      const safeName = basename(att.filename).replace(/[^a-zA-Z0-9._-]/g, '_');
-      const uniqueName = `${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`;
-      const fullPath = join(dir, uniqueName);
-      writeFileSync(fullPath, raw);
-      csvPaths.push(fullPath);
+      try {
+        const dir = getInboxDir();
+        mkdirSync(dir, { recursive: true });
+        const safeName = basename(att.filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+        const uniqueName = `${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`;
+        const fullPath = join(dir, uniqueName);
+        writeFileSync(fullPath, raw);
+        csvPaths.push(fullPath);
+      } catch (err: any) {
+        if (err instanceof AttachmentError) throw err;
+        throw new AttachmentError(`Failed to save CSV "${att.filename}": ${err.message}`);
+      }
     } else if (att.mimeType === 'application/pdf') {
       const pages = await rasterizePdfPages(raw, maxPdfPages);
       for (const pageBuffer of pages) {
