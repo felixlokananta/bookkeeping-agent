@@ -7,7 +7,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { getBalance, listTransactions, resolveAccount, type Ledger } from '../bookkeeping/ledger.ts';
+import { getBalance, resolveAccount, type Ledger } from '../bookkeeping/ledger.ts';
 import {
   parseCsvText,
   detectColumns,
@@ -16,7 +16,7 @@ import {
   type ColumnMap,
   type ColumnOverrides,
 } from '../bank_sync/csv.ts';
-import { fuzzyMatch, normalizeDescription } from '../bank_sync/dedupe.ts';
+import { fuzzyMatch } from '../bank_sync/dedupe.ts';
 
 // Re-export for public API
 export type { ColumnOverrides };
@@ -45,6 +45,7 @@ export interface UnmatchedLedgerSplit {
   date: string;
   amount: number;
   description: string | null;
+  sourcePath: string | null;
 }
 
 export interface MatchResult {
@@ -115,7 +116,8 @@ export function listUnreconciledSplits(
   const acc = resolveAccount(ledger, account);
 
   const sql = `
-    SELECT s.id as splitId, s.transaction_id as transactionId, t.date, s.amount, t.description
+    SELECT s.id as splitId, s.transaction_id as transactionId, t.date, s.amount, t.description,
+           t.source_path as sourcePath
     FROM splits s
     JOIN transactions t ON s.transaction_id = t.id
     WHERE s.account_id = ?
@@ -180,16 +182,12 @@ export function matchStatementToLedger(
       const splitDate = parseIsoDateUtc(split.date);
       if (Math.abs(splitDate - stmtDate) <= windowMs) {
         // Match found!
-        const txWithSplits = ledger.db.prepare(
-          'SELECT source_path FROM transactions WHERE id = ?'
-        ).get(split.transactionId) as { source_path: string | null } | undefined;
-
         matched.push({
           statementRow: stmtRow,
           splitId: split.splitId,
           transactionId: split.transactionId,
-          sourcedFromReceipt: txWithSplits?.source_path != null,
-          receiptPath: txWithSplits?.source_path,
+          sourcedFromReceipt: split.sourcePath != null,
+          receiptPath: split.sourcePath,
         });
 
         matchedStatementIndices.add(i);
@@ -214,16 +212,12 @@ export function matchStatementToLedger(
       // Check fuzzy description match
       if (fuzzyMatch(split.description, stmtRow.description)) {
         // Match found!
-        const txWithSplits = ledger.db.prepare(
-          'SELECT source_path FROM transactions WHERE id = ?'
-        ).get(split.transactionId) as { source_path: string | null } | undefined;
-
         matched.push({
           statementRow: stmtRow,
           splitId: split.splitId,
           transactionId: split.transactionId,
-          sourcedFromReceipt: txWithSplits?.source_path != null,
-          receiptPath: txWithSplits?.source_path,
+          sourcedFromReceipt: split.sourcePath != null,
+          receiptPath: split.sourcePath,
         });
 
         matchedStatementIndices.add(i);

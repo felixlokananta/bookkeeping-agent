@@ -569,6 +569,66 @@ describe('Reconciliation Extension Tests', () => {
       assert.strictEqual(result.unbalancedTransactions[0].sumAmount, 10000);
     });
 
+    it('should detect an account-orphan split and scope it by the transaction date via asOf', () => {
+      // Post a real, balanced transaction dated 2025-06-15, then bypass FK enforcement
+      // to point one of its splits at a non-existent account_id (dangling account_id,
+      // but the transaction itself is real and has a valid date).
+      const { transactionId, splitIds } = postTransaction(ledger, {
+        date: '2025-06-15',
+        description: 'Will become an account-orphan',
+        splits: [
+          { account: 'Assets:Checking', amount: 10000 },
+          { account: 'Income:Salary', amount: -10000 },
+        ],
+      });
+
+      ledger.db.exec('PRAGMA foreign_keys = OFF');
+      ledger.db
+        .prepare('UPDATE splits SET account_id = 999999 WHERE id = ?')
+        .run(splitIds[0]);
+      ledger.db.exec('PRAGMA foreign_keys = ON');
+
+      // No asOf: the orphan is visible.
+      const noAsOf = verifyLedger(ledger);
+      assert.strictEqual(
+        noAsOf.orphanSplits.some((o) => o.splitId === splitIds[0]),
+        true
+      );
+
+      // asOf before the transaction's date: scoped out using the transaction's own date.
+      const beforePeriod = verifyLedger(ledger, { asOf: '2025-06-01' });
+      assert.strictEqual(
+        beforePeriod.orphanSplits.some((o) => o.splitId === splitIds[0]),
+        false
+      );
+
+      // asOf on/after the transaction's date: still visible.
+      const afterPeriod = verifyLedger(ledger, { asOf: '2025-06-30' });
+      assert.strictEqual(
+        afterPeriod.orphanSplits.some((o) => o.splitId === splitIds[0]),
+        true
+      );
+      assert.strictEqual(afterPeriod.orphanSplits[0].transactionId, transactionId);
+    });
+
+    it('should always surface a transaction-orphan split regardless of asOf', () => {
+      // Insert a split whose transaction_id points at nothing at all — there is no
+      // date to scope it against, so it must never be silently hidden by an asOf cutoff.
+      ledger.db.exec('PRAGMA foreign_keys = OFF');
+      const splitResult = ledger.db
+        .prepare('INSERT INTO splits (transaction_id, account_id, amount) VALUES (?, ?, ?)')
+        .run(999999, 1, 10000);
+      ledger.db.exec('PRAGMA foreign_keys = ON');
+      const splitId = Number(splitResult.lastInsertRowid);
+
+      const noAsOf = verifyLedger(ledger);
+      assert.strictEqual(noAsOf.orphanSplits.some((o) => o.splitId === splitId), true);
+
+      // Even a very early asOf cutoff must not hide it, since its "date" is unknowable.
+      const earlyAsOf = verifyLedger(ledger, { asOf: '2000-01-01' });
+      assert.strictEqual(earlyAsOf.orphanSplits.some((o) => o.splitId === splitId), true);
+    });
+
     it('should return zero issues for a clean ledger', () => {
       postTransaction(ledger, {
         date: '2025-06-15',

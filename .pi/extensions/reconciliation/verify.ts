@@ -82,19 +82,24 @@ export function verifyLedger(
     sumAmount: row.sumAmount,
   }));
 
-  // Check for orphan splits (split referencing non-existent transaction or account)
+  // Check for orphan splits (split referencing non-existent transaction or account).
+  // A transaction-orphan (t.id IS NULL) has no date to scope against asOf, so it always
+  // surfaces regardless of asOf (never silently hidden by a period cutoff); an account-orphan
+  // (a.id IS NULL) still has a valid joined transaction date, so it's scoped by asOf normally.
   let orphanSql = `
     SELECT s.id as splitId, s.transaction_id as transactionId, s.account_id as accountId, s.amount
     FROM splits s
     LEFT JOIN transactions t ON s.transaction_id = t.id
     LEFT JOIN accounts a ON s.account_id = a.id
-    WHERE t.id IS NULL OR a.id IS NULL
+    WHERE t.id IS NULL
   `;
   const orphanParams: (string | number)[] = [];
 
   if (asOf) {
-    orphanSql += ' AND (SELECT date FROM transactions WHERE id = s.transaction_id) <= ?';
+    orphanSql += ' OR (a.id IS NULL AND t.date <= ?)';
     orphanParams.push(asOf);
+  } else {
+    orphanSql += ' OR a.id IS NULL';
   }
 
   const orphans = ledger.db.prepare(orphanSql).all(...orphanParams) as unknown as OrphanSplit[];
