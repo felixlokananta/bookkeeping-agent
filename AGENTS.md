@@ -182,3 +182,26 @@ The `reconciliation` extension adds two tools for bank reconciliation and ledger
 - **`verify_ledger`** — Run period-end integrity checks: detect unbalanced transactions (splits not summing to zero), orphan splits (referencing non-existent transactions/accounts), compute and verify trial balance, and flag accounts with unexpected-sign balances (e.g., negative balance in a debit-normal asset account). All checks are read-only and optional-date-cutoff capable.
 
 Both tools are read-only and never post new transactions or modify the ledger beyond optional reconciliation run persistence (split `account_id` is never touched by reconciliation, unlike categorization).
+
+## Tools (Issue #23 — Invoicing)
+
+The `invoicing` extension adds five tools for customer invoice management and accounts receivable (AR) analysis:
+
+- **`create_invoice`** — Create and post a customer invoice. Auto-generates invoice number (`INV-<YYYY>-<NNNN>`), computes total from line items, and posts a balanced transaction: debit `Assets:Accounts Receivable:<Customer>`, credit supplied income account. Both accounts are auto-created if missing. Invoice metadata (line items, dates, total, transaction ID) is persisted as a JSON file. Subject to auto-post threshold; use `approved: true` to override (rule 1).
+
+- **`list_invoices`** — List invoices with computed status and optional filtering by customer or status. Status (`open`, `partially paid`, `paid`, `overdue`) is derived dynamically by querying the AR account for payment splits linked to the invoice via `source_path`. Supports an optional `asOf` date for historical status queries.
+
+- **`record_payment`** — Record a payment (full or partial) against an invoice. Posts a balanced transaction: debit bank account (must already exist; no auto-create), credit `Assets:Accounts Receivable:<Customer>`. Payment is linked to the invoice via `source_path`, so it appears in status and aging reports. Multiple partial payments accumulate. Subject to auto-post threshold; use `approved: true` to override (rule 1).
+
+- **`render_invoice`** — Render an invoice as formatted plain text (markdown-style), including customer, invoice number, line items, total, payment summary, and current status.
+
+- **`ar_aging`** — Generate an accounts receivable aging report. Buckets outstanding (non-paid) invoices by days outstanding (0-30, 31-60, 61-90, 90+), grouped by customer with per-bucket and grand totals. Paid invoices are excluded. Supports an optional `asOf` date.
+
+**Key design notes:**
+- No schema changes: invoices and payments reuse existing `transactions`/`splits` tables and the `source_path` column (already used by receipt capture for provenance in issue #3).
+- Status derivation (no stored field): status is computed dynamically, ensuring accuracy without background updates.
+- `source_path`-based linkage (load-bearing): the `source_path` convention links payments to invoices; payments posted without it (e.g., manually via `post_transaction`) become invisible to invoice status/aging.
+- Bank account auto-create asymmetry: `create_invoice` auto-creates AR and income accounts, but `record_payment` does **not** auto-create the bank account (throws if missing) to avoid silently creating accounts from typos.
+- Per-customer AR accounts: invoices for the same customer share an `Assets:Accounts Receivable:<Customer>` account; `source_path`-based linkage distinguishes payments by invoice within that shared account.
+
+None of these tools add new hard rules; all inherit the auto-post threshold gate (rule 1) unchanged.

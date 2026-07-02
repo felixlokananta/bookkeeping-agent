@@ -135,6 +135,40 @@ You: post a transaction:
 The agent will reject it (and log the anomaly) if the splits don't sum to zero, or if an account
 doesn't exist — it never invents a balancing figure or guesses an account.
 
+## 8. Reconciling a bank statement
+
+```
+You: reconcile Assets:Checking against my June statement, ending balance $1,240.55, statement
+     at data/inbox/checking_june.csv
+
+Agent: [calls reconcile_account] 14 matched, 1 ledger-only, 0 statement-only. Discrepancy: $0.00.
+       Preview only — say "mark it reconciled" to confirm.
+You: mark it reconciled
+Agent: [calls reconcile_account with markReconciled: true] Reconciliation run #3 recorded.
+```
+
+Reconciliation never edits transactions or splits — it only records which entries were matched in
+this run. Ask for a `verify_ledger` check any time for a read-only integrity pass (unbalanced
+transactions, orphan splits, trial balance).
+
+## 9. Invoicing a customer and getting paid
+
+```
+You: invoice Acme Corp for 10 hours of consulting at $150/hr, due in 30 days, to Income:Consulting
+
+Agent: [calls create_invoice] Invoice INV-2026-0001 created. Total: $1,500.00. Status: open.
+
+You: Acme paid $500 from checking
+
+Agent: [calls record_payment] Payment recorded. Invoice INV-2026-0001 status: partially paid
+       ($1,000.00 remaining).
+```
+
+Invoices post real double-entry transactions immediately (debit Accounts Receivable, credit the
+income account you name) — there's no separate draft-invoice state. Ask for an `ar_aging` report
+any time to see who owes what, bucketed by how overdue they are. `render_invoice` produces a
+plain-text copy of an invoice you can hand to the customer.
+
 ## What the agent will never do
 
 - Post anything without restating it back to you first.
@@ -144,6 +178,8 @@ doesn't exist — it never invents a balancing figure or guesses an account.
   mutated in place is a split's category (`account_id`) during categorization — everything else
   is append-only, forever.
 - Auto-post above the configured threshold without your approval.
+- Accept a negative-quantity/negative-price invoice line item, or silently create a bank account
+  for `record_payment` from a typo — both are rejected outright, not guessed at.
 
 See `AGENTS.md` for the authoritative hard-rule list and `BRAIN.md` for domain details behind the
 scenes above (duplicate-detection tolerance, retained-earnings calculation, etc.).

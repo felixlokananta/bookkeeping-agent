@@ -507,6 +507,78 @@ export tax data for 2025
   directory (e.g. via `..` segments or an absolute path elsewhere) are rejected.
 - Each row is a split with date, category (account name), description, and amount.
 
+## Invoicing and Accounts Receivable (Issue #23)
+
+The `invoicing` extension adds five tools for customer invoicing and accounts receivable. Invoices
+are ordinary balanced double-entry transactions — no ledger schema changes. Invoice metadata (line
+items, customer, dates) is stored as one JSON file per invoice under `memory/invoices/`
+(`INV-<year>-<seq>` numbering, path overridable via `BOOKKEEPING_INVOICES_DIR` for test isolation).
+Status (open/partially paid/paid/overdue) is never stored — it's computed on the fly from ledger
+splits linked to the invoice via the transaction's `source_path` column.
+
+#### `create_invoice`
+Create a customer invoice from line items and post it to the ledger.
+
+**Example prompt:**
+```
+create an invoice for Acme Corp: 10 hours of consulting at $150/hr, due in 30 days, posting to Income:Consulting
+```
+
+**Behavior:**
+- Computes the total from `quantity * unitPrice` per line item (rejects non-positive quantity or
+  negative unit price).
+- Posts a balanced transaction: debit `Assets:Accounts Receivable:<Customer>` / credit the supplied
+  income account. Both accounts are auto-created if missing.
+- Subject to the auto-post threshold gate, same as `post_transaction` — an invoice above the limit
+  needs `approved: true`.
+- Assigns a sequential invoice number (`INV-2026-0001`, ...), resetting per calendar year.
+
+#### `list_invoices`
+List invoices with dynamically computed status, optionally filtered by customer or status.
+
+**Example prompt:**
+```
+show all open invoices for Acme Corp
+```
+
+**Status values:** `open` (no payments yet), `partially paid`, `paid` (fully paid), `overdue` (due
+date passed with a balance remaining). Pass `asOf` to compute status as of a specific date instead
+of today.
+
+#### `record_payment`
+Record a full or partial payment against an invoice.
+
+**Example prompt:**
+```
+record a $500 payment from Acme Corp against invoice INV-2026-0001, paid from Assets:Checking
+```
+
+**Behavior:**
+- Posts debit `Assets:<Bank>` / credit `Assets:Accounts Receivable:<Customer>`, linked back to the
+  invoice via `source_path` so it's counted toward that invoice's balance (not just the customer's
+  overall AR balance).
+- The bank account must already exist — unlike AR/income accounts in `create_invoice`, it is **not**
+  auto-created, to avoid silently creating a new `Assets:*` account from a typo.
+- Multiple partial payments accumulate toward `paid`. Subject to the same auto-post threshold gate.
+
+#### `render_invoice`
+Render an invoice as formatted plain text/markdown (line items, total, payment summary, status) —
+suitable for copying or printing. PDF/HTML rendering and email delivery are out of scope for v1.
+
+**Example prompt:**
+```
+render invoice INV-2026-0001
+```
+
+#### `ar_aging`
+Read-only accounts receivable aging report: outstanding balance per customer, bucketed by days
+outstanding (0–30/31–60/61–90/90+), computed from open invoices' issue dates.
+
+**Example prompt:**
+```
+show the AR aging report as of today
+```
+
 ## Unit Tests
 
 Run the comprehensive test suite:
@@ -527,6 +599,8 @@ npm test
 - Receipt/invoice capture and confidence gating
 - Categorization (rule learning, bulk apply, corrections)
 - Reporting (spending breakdown, income statement, balance sheet, tax export)
+- Reconciliation (statement matching, ledger integrity verification)
+- Invoicing (invoice creation/numbering, payment recording, status derivation, AR aging)
 
 All tests use an in-memory database (`:memory:`) for isolation and speed.
 
@@ -602,15 +676,31 @@ bookkeeping-agent/
 │       │   ├── index.ts                   # Pi extension adapter (spending_by_category, income_statement, balance_sheet, tax_year_export)
 │       │   ├── reports.ts                 # Reporting core (reads ledger, no mutation)
 │       │   └── csv.ts                     # CSV export core
-│       ├── reconciliation/EXTENSION.md    # Future skeleton
-│       └── invoicing/EXTENSION.md         # Future skeleton
+│       ├── reconciliation/                # Issue #22: bank reconciliation and ledger verification
+│       │   ├── EXTENSION.md
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── index.ts                   # Pi extension adapter (reconcile_account, verify_ledger)
+│       │   ├── reconcile.ts               # Reconciliation core
+│       │   └── verify.ts                  # Ledger verification core
+│       └── invoicing/                     # Issue #23: invoice generation and accounts receivable
+│           ├── EXTENSION.md
+│           ├── package.json
+│           ├── tsconfig.json
+│           ├── index.ts                   # Pi extension adapter (create_invoice, list_invoices, record_payment, render_invoice, ar_aging)
+│           ├── invoices.ts                # Invoice creation, listing, and payment recording core
+│           ├── aging.ts                   # AR aging report core
+│           ├── render.ts                  # Invoice rendering core
+│           └── store.ts                   # Invoice JSON storage and numbering
 │
 └── test/
     ├── ledger.test.ts                     # Node:test unit tests for the ledger core
     ├── ingestion.test.ts                  # Node:test unit tests for bank_sync
     ├── receipt_ocr.test.ts                # Node:test unit tests for receipt_ocr
     ├── categorization.test.ts             # Node:test unit tests for categorization
-    └── reporting.test.ts                  # Node:test unit tests for reporting
+    ├── reporting.test.ts                  # Node:test unit tests for reporting
+    ├── reconciliation.test.ts             # Node:test unit tests for reconciliation
+    └── invoicing.test.ts                  # Node:test unit tests for invoicing
 ```
 
 ## Architecture
@@ -669,6 +759,8 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - **Issue #5:** Reporting (financial statements and tax export) ✓
 - **Issue #11:** Auto-categorize transactions at ingestion time ✓
 - **Issue #12:** PDF support in receipt_ocr (first page only via rasterization) ✓
+- **Issue #22:** Bank reconciliation and ledger verification ✓
+- **Issue #23:** Invoice generation and accounts receivable ✓
 
 ## References
 

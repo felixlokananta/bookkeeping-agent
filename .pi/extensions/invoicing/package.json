@@ -1,0 +1,7 @@
+{
+  "name": "invoicing",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
