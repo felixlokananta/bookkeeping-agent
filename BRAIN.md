@@ -94,8 +94,34 @@ The `reporting` extension provides four tools for financial analysis and tax com
 
 All reports read from the ledger without modifying it; no closing entries are posted (retained earnings is calculated at report time).
 
+## Bank Reconciliation (Issue #22)
+
+`reconcile_account` matches bank statement lines (balance-only or CSV) against ledger splits using
+tiered matching: Tier 1 is exact amount + date within a window (default ±3 days); Tier 2 (fallback,
+unmatched rows only) is exact amount + fuzzy description match, reusing the same normalization and
+tolerance as the ingestion duplicate-detection heuristic above. Confirmed matches are recorded in
+separate `reconciliation_runs`/`reconciliations` tables, not by mutating `splits` — reconciliation
+never touches the append-only ledger tables. `verify_ledger` is a separate, always-read-only
+integrity check (unbalanced transactions, orphan splits, trial balance, unexpected-sign account
+balances) usable independent of reconciliation.
+
+## Accounts Receivable and Invoicing (Issue #23)
+
+Invoices use the existing chart of accounts rather than a separate subledger: each customer gets an
+`Assets:Accounts Receivable:<Customer>` sub-account (auto-created on first invoice), and an invoice
+is simply a transaction debiting that account and crediting an income account of the operator's
+choice. Because that AR account is shared across all of a customer's invoices, the `source_path`
+column (see "Source file reference" above) does double duty here: both the invoice-posting
+transaction and every payment transaction against it carry the invoice's JSON storage path as
+`source_path`, which is how one specific invoice's balance is distinguished from the customer's
+overall AR balance. Invoice metadata (line items, dates) lives outside the ledger as one JSON file
+per invoice under `memory/invoices/`, numbered `INV-<year>-<seq>` (sequence resets per calendar
+year). Status (open/partially paid/paid/overdue) is never stored — it's computed on demand from the
+linked splits, the same "no stored derived state" philosophy as `getBalance` and the reporting tools.
+
 ## Future Considerations (Out of Scope)
 
 - Inventing a tax-code mapping taxonomy beyond the existing chart of accounts (issue #5 scope is categorized export only, not full tax integration)
 - Multi-currency and foreign-exchange handling
 - Recurring transactions and period-end closings
+- Sales tax, recurring invoices, and invoice overpayment/refund workflows (issue #23 scope is the core invoice lifecycle and AR aging only; a payment larger than an invoice's remaining balance is accepted as-is, with no refund flow)

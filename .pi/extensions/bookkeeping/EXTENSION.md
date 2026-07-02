@@ -83,9 +83,15 @@ List transactions with optional filters.
 - **Money:** Integer minor units (cents); floats only at tool boundaries
 - **Anomaly logging:** Append-only JSON file at `memory/anomaly_log.json`
 
-## Future Issues
+## Built On By Later Issues
 
-- Issue #2: Bank synchronization and statement import
-- Issue #3: Receipt/invoice OCR
-- Issue #4: Automatic categorization with vendor rules
-- Issue #5: Reporting and tax export
+This core ledger is used unchanged by every later extension — none of them modify `ledger.ts`,
+`money.ts`, or `policy.ts` (reconciliation added its own tables to `schema.ts`'s `SCHEMA_SQL`, but
+left the core tables/triggers above untouched):
+
+- Issue #2 (`bank_sync`): manual entry and CSV import
+- Issue #3 (`receipt_ocr`), Issue #12: receipt/invoice image and PDF capture
+- Issue #4, Issue #11 (`categorization`): auto-categorization via vendor rules
+- Issue #5 (`reporting`): financial reports and tax export
+- Issue #22 (`reconciliation`): bank statement matching and ledger verification
+- Issue #23 (`invoicing`): customer invoicing and accounts receivable

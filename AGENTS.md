@@ -204,4 +204,4 @@ The `invoicing` extension adds five tools for customer invoice management and ac
 - Bank account auto-create asymmetry: `create_invoice` auto-creates AR and income accounts, but `record_payment` does **not** auto-create the bank account (throws if missing) to avoid silently creating accounts from typos.
 - Per-customer AR accounts: invoices for the same customer share an `Assets:Accounts Receivable:<Customer>` account; `source_path`-based linkage distinguishes payments by invoice within that shared account.
 
-Neither tool adds new hard rules; both inherit the auto-post threshold gate (rule 1) unchanged.
+None of these tools add new hard rules; all inherit the auto-post threshold gate (rule 1) unchanged.

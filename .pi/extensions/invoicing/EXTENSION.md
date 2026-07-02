@@ -19,8 +19,8 @@ Create a customer invoice and post it as a balanced ledger transaction.
 4. Subject to the auto-post threshold; use `approved: true` to override if needed.
 
 **Parameters:**
-- `customer`: Customer name
-- `lineItems`: Array of `{ description, quantity, unitPrice }` (unitPrice in dollars)
+- `customer`: Customer name (must not contain `:`)
+- `lineItems`: Array of `{ description, quantity, unitPrice }` (unitPrice in dollars); at least one required, `quantity > 0` and `unitPrice >= 0`
 - `issueDate`, `dueDate`: YYYY-MM-DD format
 - `incomeAccount`: Account to credit (e.g., "Income:Services")
 - `approved` (optional): Override auto-post threshold (default: false)
@@ -54,9 +54,9 @@ Record a payment (full or partial) against an invoice.
 5. Subject to auto-post threshold; use `approved: true` to override.
 
 **Parameters:**
-- `invoiceNumber`: Invoice number (e.g., "INV-2026-0001")
+- `invoiceNumber`: Invoice number (e.g., "INV-2026-0001"); must match `INV-YYYY-NNNN`
 - `bankAccount`: Bank account to debit (must exist; no auto-create)
-- `amount`: Payment amount in dollars
+- `amount`: Payment amount in dollars, must be `> 0`
 - `date`: Payment date (YYYY-MM-DD)
 - `memo` (optional): Note for the split
 - `approved` (optional): Override auto-post threshold (default: false)
@@ -119,9 +119,25 @@ AR is stored in `Assets:Accounts Receivable:<Customer>` accounts, one per custom
 ### Bank account auto-create asymmetry
 `create_invoice` and `record_payment` auto-create AR and income accounts respectively, but `record_payment` does **not** auto-create the bank account — it throws if the account doesn't exist. This is a deliberate asymmetry to avoid silently creating arbitrary `Assets:*` accounts from a typo.
 
+### Input validation
+- `create_invoice` rejects line items with `quantity <= 0` or `unitPrice < 0`, and rejects an empty
+  `lineItems` array — a negative quantity would otherwise produce a negative-total invoice that
+  immediately reports itself as `paid` with zero payments recorded.
+- `create_invoice` rejects a `customer` name containing `:`, since it's interpolated into the
+  colon-path account name `Assets:Accounts Receivable:<Customer>` and a colon would create an
+  unintended nested sub-account.
+- `record_payment` rejects `amount <= 0`.
+- `invoiceNumber` (a free-text, user-controlled parameter to both `record_payment` and
+  `render_invoice`) is validated against `INV-\d{4}-\d{4}` before being used to build a filesystem
+  path in `loadInvoiceByNumber` — closes a path-traversal input (e.g. `../../../etc/passwd`) the
+  same way `resolveExportPath` in `reporting/index.ts` guards its `outputPath` parameter.
+- Both `createInvoice`'s `totalMinor` and `renderInvoice`'s per-line display totals are derived from
+  the same `lineItemTotalMinor` helper (`store.ts`) so a fractional-cent unit price can't produce a
+  rendered invoice whose line items don't sum to the printed grand total.
+
 ## Risks and Gotchas
 
 - **source_path is load-bearing:** A payment posted manually without setting `source_path` to the invoice file path becomes invisible to invoice status/aging. Users must follow the `record_payment` convention or manually set `source_path` correctly.
 - **Numbering race:** Invoice numbering by directory scan is subject to a benign race under concurrent writes. At v1 volumes this is acceptable; future versions may add a counter file.
-- **No overpayment validation:** Payments larger than the remaining balance are accepted and produce a negative `remaining` balance (documented as a known gap). No refund flow exists.
+- **No overpayment validation:** A payment amount must be positive, but a payment *larger than the remaining balance* is still accepted and produces a negative `remaining` balance (documented as a known gap). No refund flow exists.
 - **Bank account requirement:** `record_payment` requires the bank account to already exist. If mistyped, the tool throws clearly, but this asymmetry with the auto-creating AR/income accounts is worth noting.
