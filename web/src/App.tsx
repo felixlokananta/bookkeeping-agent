@@ -52,47 +52,59 @@ export default function App() {
       const decoder = new TextDecoder();
       let buffer = "";
 
+      // Each SSE frame is terminated by a blank line ("\n\n"). Splitting on
+      // that (rather than single "\n") keeps a frame intact even if a
+      // network chunk boundary falls between its "event:" and "data:" lines.
+      const processFrame = (frame: string) => {
+        let eventType: string | null = null;
+        let dataLine: string | null = null;
+        for (const line of frame.split("\n")) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            dataLine = line.slice(6);
+          }
+        }
+        if (!eventType || dataLine === null) return;
+
+        try {
+          const data = JSON.parse(dataLine);
+
+          if (eventType === "delta" && data.text) {
+            // Append text to the last assistant message
+            setMessages((prev) => {
+              const updated = [...prev];
+              if (updated[updated.length - 1]?.role === "assistant") {
+                updated[updated.length - 1].text += data.text;
+              }
+              return updated;
+            });
+          } else if (eventType === "error") {
+            setError(data.message || "Unknown error");
+          }
+          // Ignore "tool" events for now (used for UI polish later)
+        } catch (e) {
+          console.error("Failed to parse SSE data:", dataLine, e);
+        }
+      };
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE frames
-        const lines = buffer.split("\n");
-        buffer = lines[lines.length - 1]; // Keep incomplete line in buffer
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? ""; // keep the trailing incomplete frame
 
-        for (let i = 0; i < lines.length - 1; i++) {
-          const line = lines[i];
-
-          if (line.startsWith("event: ")) {
-            const eventType = line.slice(7).trim();
-            const dataLine = lines[++i];
-
-            if (dataLine?.startsWith("data: ")) {
-              const jsonStr = dataLine.slice(6).trim();
-              try {
-                const data = JSON.parse(jsonStr);
-
-                if (eventType === "delta" && data.text) {
-                  // Append text to the last assistant message
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    if (updated[updated.length - 1]?.role === "assistant") {
-                      updated[updated.length - 1].text += data.text;
-                    }
-                    return updated;
-                  });
-                } else if (eventType === "error") {
-                  setError(data.message || "Unknown error");
-                }
-                // Ignore "tool" events for now (used for UI polish later)
-              } catch (e) {
-                console.error("Failed to parse SSE data:", jsonStr, e);
-              }
-            }
-          }
+        for (const frame of frames) {
+          processFrame(frame);
         }
+      }
+
+      // Handle a final frame that wasn't followed by a trailing blank line.
+      if (buffer.trim()) {
+        processFrame(buffer);
       }
     } catch (err) {
       const errorMessage =

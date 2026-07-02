@@ -34,12 +34,29 @@ export function createApp() {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    // If the client disconnects mid-stream, don't leave the single shared
+    // session locked for the full (possibly long) remaining generation —
+    // release the guard immediately and abort the in-flight prompt so it
+    // stops consuming model tokens for a response nobody will see. Must use
+    // res's "close" (writable side), not req's — req.on("close") fires once
+    // the request body finishes being read, well before the response ends.
+    let clientDisconnected = false;
+    res.on("close", () => {
+      if (res.writableEnded) return;
+      clientDisconnected = true;
+      setIsStreaming(false);
+      getChatSession()
+        .then((session) => session.abort())
+        .catch(() => {});
+    });
+
     try {
       setIsStreaming(true);
       const session = await getChatSession();
 
       // Subscribe to session events
       const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
+        if (clientDisconnected) return;
         if (
           event.type === "message_update" &&
           event.assistantMessageEvent.type === "text_delta"
@@ -63,19 +80,27 @@ export function createApp() {
       try {
         await session.prompt(message);
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        writeSseEvent(res, "error", { message: errorMessage });
+        if (!clientDisconnected) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          writeSseEvent(res, "error", { message: errorMessage });
+        }
       } finally {
         unsubscribe();
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      writeSseEvent(res, "error", { message: errorMessage });
+      if (!clientDisconnected) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        writeSseEvent(res, "error", { message: errorMessage });
+      }
     } finally {
-      setIsStreaming(false);
-      res.end();
+      if (!clientDisconnected) {
+        setIsStreaming(false);
+      }
+      if (!res.writableEnded) {
+        res.end();
+      }
     }
   });
 
