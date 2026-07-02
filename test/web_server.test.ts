@@ -76,15 +76,19 @@ describe("web_server", () => {
   });
 
   it("concurrent POST /chat returns 409", async () => {
-    // Start first request (don't wait for it)
-    const firstPromise = fetch(`http://localhost:${port}/chat`, {
+    // Start first request. Awaiting the fetch Promise itself (rather than a
+    // fixed sleep) is the reliable synchronization point: the server only
+    // flushes response headers to the client on the first res.write(), which
+    // happens well after setIsStreaming(true) runs in the handler. A fixed
+    // setTimeout race lost intermittently on slower/shared CI runners
+    // (200 instead of 409) because there's no guarantee the first request's
+    // handler reaches setIsStreaming(true) within an arbitrary wall-clock
+    // window.
+    const firstResponse = await fetch(`http://localhost:${port}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: "First message" }),
     });
-
-    // Give it a tiny bit of time to start
-    await new Promise((resolve) => setTimeout(resolve, 10));
 
     // Try second request
     const secondResponse = await fetch(`http://localhost:${port}/chat`, {
@@ -95,8 +99,8 @@ describe("web_server", () => {
 
     assert.strictEqual(secondResponse.status, 409);
 
-    // Wait for first to complete
-    const firstResponse = await firstPromise;
+    // Drain the first response's stream to let it complete cleanly.
+    await firstResponse.text();
     assert.strictEqual(firstResponse.status, 200);
   });
 
