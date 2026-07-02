@@ -466,6 +466,48 @@ describe('Reporting Extension Tests', () => {
       assert(result.assets.length >= 1); // At least Checking
       assert(result.equityAccounts.length >= 1); // At least Owner
     });
+
+    it('should maintain parts-sum-to-total invariant: equityAccounts sum equals totalEquityMinor', () => {
+      // Post income to generate non-zero retained earnings
+      postTransaction(ledger, {
+        date: '2025-06-01',
+        description: 'Salary income',
+        splits: [
+          { account: 'Assets:Checking', amount: 100000 },
+          { account: 'Income:Salary', amount: -100000 },
+        ],
+        approved: true,
+      });
+
+      // Post expense to have retained earnings > 0
+      postTransaction(ledger, {
+        date: '2025-06-10',
+        description: 'Expense',
+        splits: [
+          { account: 'Expenses:Food:Groceries', amount: 3000 },
+          { account: 'Assets:Checking', amount: -3000 },
+        ],
+      });
+
+      const result = balanceSheet(ledger, { asOf: '2025-06-30' });
+
+      // Sum all equityAccounts
+      const equityAccountsSum = result.equityAccounts.reduce((sum, a) => sum + a.totalMinor, 0);
+
+      // Verify the invariant: sum of equityAccounts equals totalEquityMinor
+      assert.strictEqual(equityAccountsSum, result.totalEquityMinor);
+
+      // Verify that a "Retained Earnings" entry exists in equityAccounts
+      const retainedEarningsEntry = result.equityAccounts.find(
+        (a) => a.accountName === 'Retained Earnings'
+      );
+      assert.ok(retainedEarningsEntry, 'Retained Earnings entry should exist in equityAccounts');
+      assert.strictEqual(
+        retainedEarningsEntry?.totalMinor,
+        result.retainedEarnings,
+        'Retained Earnings entry totalMinor should match result.retainedEarnings'
+      );
+    });
   });
 
   describe('taxYearExport', () => {
