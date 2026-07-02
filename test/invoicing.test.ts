@@ -16,7 +16,7 @@ import {
   resolveAccount,
   type Ledger,
 } from '../.pi/extensions/bookkeeping/ledger.ts';
-import { toMinor, toMajor } from '../.pi/extensions/bookkeeping/money.ts';
+import { toMinor, toMajor, formatMoney } from '../.pi/extensions/bookkeeping/money.ts';
 import {
   createInvoice,
   listInvoices,
@@ -219,6 +219,78 @@ describe('Invoicing Extension Tests', () => {
         .get(invoice.transactionId) as any;
       assert.strictEqual(tx.source_path, invoice.filePath);
     });
+
+    it('should reject a negative quantity line item', () => {
+      const opts: CreateInvoiceOpts = {
+        customer: 'Negative Qty Customer',
+        lineItems: [{ description: 'Refund-ish item', quantity: -1, unitPrice: 100.0 }],
+        issueDate: '2026-07-01',
+        dueDate: '2026-08-01',
+        incomeAccount: 'Income:Services',
+      };
+
+      assert.throws(() => createInvoice(ledger, opts), /quantity > 0/i);
+    });
+
+    it('should reject a negative unit price line item', () => {
+      const opts: CreateInvoiceOpts = {
+        customer: 'Negative Price Customer',
+        lineItems: [{ description: 'Item', quantity: 1, unitPrice: -50.0 }],
+        issueDate: '2026-07-01',
+        dueDate: '2026-08-01',
+        incomeAccount: 'Income:Services',
+      };
+
+      assert.throws(() => createInvoice(ledger, opts), /unitPrice >= 0/i);
+    });
+
+    it('should reject a customer name containing a colon', () => {
+      const opts: CreateInvoiceOpts = {
+        customer: 'Smith:LLC',
+        lineItems: [{ description: 'Item', quantity: 1, unitPrice: 50.0 }],
+        issueDate: '2026-07-01',
+        dueDate: '2026-08-01',
+        incomeAccount: 'Income:Services',
+      };
+
+      assert.throws(() => createInvoice(ledger, opts), /must not contain ':'/);
+    });
+
+    it('should reject an empty line items array', () => {
+      const opts: CreateInvoiceOpts = {
+        customer: 'Empty Items Customer',
+        lineItems: [],
+        issueDate: '2026-07-01',
+        dueDate: '2026-08-01',
+        incomeAccount: 'Income:Services',
+      };
+
+      assert.throws(() => createInvoice(ledger, opts), /at least one line item/i);
+    });
+
+    it('should keep rendered line totals consistent with the grand total for fractional-cent unit prices', () => {
+      const opts: CreateInvoiceOpts = {
+        customer: 'Rounding Customer',
+        lineItems: [{ description: 'Hourly work', quantity: 3, unitPrice: 19.995 }],
+        issueDate: '2026-07-01',
+        dueDate: '2026-08-01',
+        incomeAccount: 'Income:Services',
+      };
+
+      const invoice = createInvoice(ledger, opts);
+      const rendered = renderInvoice(invoice);
+
+      // Sum of the per-line totals, recomputed exactly the way render.ts
+      // does, must equal invoice.totalMinor (no independent rounding path).
+      const lineTotal = Math.round(3 * toMinor(19.995));
+      assert.strictEqual(lineTotal, invoice.totalMinor);
+
+      // The single line item's total and the grand total must print as the
+      // same dollar figure in the rendered output (there's only one line item).
+      const expected = formatMoney(invoice.totalMinor);
+      const occurrences = rendered.split(expected).length - 1;
+      assert(occurrences >= 2, `expected "${expected}" to appear at least twice (line total + grand total) in:\n${rendered}`);
+    });
   });
 
   describe('Invoice numbering', () => {
@@ -268,6 +340,22 @@ describe('Invoicing Extension Tests', () => {
 
       const invoice2 = createInvoice(ledger, opts2);
       assert.strictEqual(invoice2.invoiceNumber, 'INV-2027-0001');
+    });
+  });
+
+  describe('loadInvoiceByNumber', () => {
+    it('should throw "not found" for a plain unknown invoice number', () => {
+      assert.throws(() => loadInvoiceByNumber('INV-2026-9999'), /not found/i);
+    });
+
+    it('should reject path-traversal-shaped input instead of resolving outside the invoices directory', () => {
+      assert.throws(() => loadInvoiceByNumber('../../../../../../etc/passwd'), /not found/i);
+      assert.throws(() => loadInvoiceByNumber('../secret'), /not found/i);
+    });
+
+    it('should reject an invoice number that does not match INV-YYYY-NNNN', () => {
+      assert.throws(() => loadInvoiceByNumber('not-an-invoice-number'), /not found/i);
+      assert.throws(() => loadInvoiceByNumber('INV-26-1'), /not found/i);
     });
   });
 
@@ -551,6 +639,51 @@ describe('Invoicing Extension Tests', () => {
         date: '2026-07-10',
         approved: true,
       });
+    });
+
+    it('should reject a zero or negative payment amount', () => {
+      const invoice = createInvoice(ledger, {
+        customer: 'Customer A',
+        lineItems: [{ description: 'Item', quantity: 1, unitPrice: 100.0 }],
+        issueDate: '2026-07-01',
+        dueDate: '2026-08-01',
+        incomeAccount: 'Income:Services',
+      });
+
+      assert.throws(
+        () =>
+          recordPayment(ledger, {
+            invoiceNumber: invoice.invoiceNumber,
+            bankAccount: 'Assets:Checking',
+            amount: 0,
+            date: '2026-07-10',
+          }),
+        /amount must be > 0/i
+      );
+
+      assert.throws(
+        () =>
+          recordPayment(ledger, {
+            invoiceNumber: invoice.invoiceNumber,
+            bankAccount: 'Assets:Checking',
+            amount: -20,
+            date: '2026-07-10',
+          }),
+        /amount must be > 0/i
+      );
+    });
+
+    it('should reject an invoice number that does not match the expected format (path traversal guard)', () => {
+      assert.throws(
+        () =>
+          recordPayment(ledger, {
+            invoiceNumber: '../../../../etc/passwd',
+            bankAccount: 'Assets:Checking',
+            amount: 50.0,
+            date: '2026-07-10',
+          }),
+        /not found/i
+      );
     });
   });
 

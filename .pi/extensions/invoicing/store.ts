@@ -16,6 +16,18 @@ export interface LineItem {
   unitPrice: number; // in minor units (cents)
 }
 
+/**
+ * Compute a line item's total in minor units from a quantity and a
+ * minor-unit unit price. Single source of truth for this multiplication so
+ * invoice totals (invoices.ts) and rendered line totals (render.ts) can
+ * never disagree due to independently-rounded paths to the same number.
+ */
+export function lineItemTotalMinor(quantity: number, unitPriceMinor: number): number {
+  return Math.round(quantity * unitPriceMinor);
+}
+
+const INVOICE_NUMBER_RE = /^INV-\d{4}-\d{4}$/;
+
 export interface Invoice {
   invoiceNumber: string; // e.g. "INV-2026-0001"
   customer: string;
@@ -73,9 +85,16 @@ export function nextInvoiceNumber(issueDate: string): string {
 
 /**
  * Load an invoice by number from disk.
- * Throws if not found.
+ * Throws if not found, including when invoiceNumber doesn't match the
+ * expected INV-YYYY-NNNN format — this is user-controlled input used to
+ * build a filesystem path, so malformed/path-traversal input (e.g.
+ * "../../../etc/passwd") is rejected before it ever reaches `resolve()`.
  */
 export function loadInvoiceByNumber(invoiceNumber: string): Invoice {
+  if (!INVOICE_NUMBER_RE.test(invoiceNumber)) {
+    throw new Error(`Invoice not found: ${invoiceNumber}`);
+  }
+
   const dir = resolveInvoicesDir();
   const filePath = resolve(dir, `${invoiceNumber}.json`);
 

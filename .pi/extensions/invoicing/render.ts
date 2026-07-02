@@ -3,7 +3,8 @@
  * Renders an invoice as plain text/markdown.
  */
 
-import { toMajor, formatMoney } from '../bookkeeping/money.ts';
+import { formatMoney } from '../bookkeeping/money.ts';
+import { lineItemTotalMinor } from './store.ts';
 import type { InvoiceWithStatus } from './invoices.ts';
 
 /**
@@ -28,10 +29,10 @@ export function renderInvoice(invoice: InvoiceWithStatus): string {
   text += `Description                              Qty     Unit Price    Line Total\n`;
   text += `${'-'.repeat(80)}\n`;
 
-  let subtotalMinor = 0;
   for (const item of invoice.lineItems) {
-    const lineTotalMinor = item.quantity * item.unitPrice;
-    subtotalMinor += lineTotalMinor;
+    // Same helper used by invoices.ts to derive invoice.totalMinor, so the
+    // line items printed here always sum to the grand total below.
+    const lineTotalMinor = lineItemTotalMinor(item.quantity, item.unitPrice);
 
     const description = item.description.substring(0, 38).padEnd(38);
     const qty = String(item.quantity).padStart(5);

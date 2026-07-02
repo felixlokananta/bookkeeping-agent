@@ -10,7 +10,15 @@ import { resolve } from 'path';
 import type { Ledger } from '../bookkeeping/ledger.ts';
 import { createAccount, resolveAccount, postTransaction } from '../bookkeeping/ledger.ts';
 import { toMinor, toMajor } from '../bookkeeping/money.ts';
-import { nextInvoiceNumber, saveInvoice, loadInvoiceByNumber, listAllInvoices, resolveInvoicesDir, type Invoice } from './store.ts';
+import {
+  nextInvoiceNumber,
+  saveInvoice,
+  loadInvoiceByNumber,
+  listAllInvoices,
+  resolveInvoicesDir,
+  lineItemTotalMinor,
+  type Invoice,
+} from './store.ts';
 
 export type InvoiceStatus = 'open' | 'partially paid' | 'paid' | 'overdue';
 
@@ -118,10 +126,30 @@ export function createInvoice(
 ): InvoiceWithStatus {
   const { customer, lineItems, issueDate, dueDate, incomeAccount, approved } = opts;
 
-  // Compute total from line items
+  if (customer.includes(':')) {
+    throw new Error(
+      `Customer name must not contain ':' (would create an unintended nested account under Assets:Accounts Receivable): ${customer}`
+    );
+  }
+
+  if (lineItems.length === 0) {
+    throw new Error('Invoice must have at least one line item');
+  }
+  for (const [i, item] of lineItems.entries()) {
+    if (!(item.quantity > 0)) {
+      throw new Error(`Line item ${i} ("${item.description}") must have quantity > 0, got: ${item.quantity}`);
+    }
+    if (!(item.unitPrice >= 0)) {
+      throw new Error(`Line item ${i} ("${item.description}") must have unitPrice >= 0, got: ${item.unitPrice}`);
+    }
+  }
+
+  // Compute total from line items. Each line's minor-unit total is derived
+  // from the already-rounded per-unit minor price via lineItemTotalMinor,
+  // the same helper render.ts uses for display — so the printed grand total
+  // can never disagree with the sum of the printed line totals.
   const totalMinor = lineItems.reduce((sum, item) => {
-    const itemTotal = toMinor(item.quantity * item.unitPrice);
-    return sum + itemTotal;
+    return sum + lineItemTotalMinor(item.quantity, toMinor(item.unitPrice));
   }, 0);
 
   // Compute invoice number
@@ -259,6 +287,10 @@ export function recordPayment(
   opts: RecordPaymentOpts
 ): void {
   const { invoiceNumber, bankAccount, amount, date, memo, approved } = opts;
+
+  if (!(amount > 0)) {
+    throw new Error(`Payment amount must be > 0, got: ${amount}`);
+  }
 
   // Load the invoice
   const invoice = loadInvoiceByNumber(invoiceNumber);
