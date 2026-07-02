@@ -5,8 +5,9 @@
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { processAttachments, AttachmentError, type Attachment } from '../server/attachments.js';
 
 describe('Attachment processing', () => {
@@ -29,7 +30,7 @@ describe('Attachment processing', () => {
         },
       ];
 
-      const result = await processAttachments(attachments);
+      const { images: result } = await processAttachments(attachments);
 
       assert.strictEqual(result.length, 1);
       assert.strictEqual(result[0].type, 'image');
@@ -47,7 +48,7 @@ describe('Attachment processing', () => {
         },
       ];
 
-      const result = await processAttachments(attachments);
+      const { images: result } = await processAttachments(attachments);
 
       assert.strictEqual(result.length, 1);
       assert.strictEqual(result[0].type, 'image');
@@ -67,7 +68,7 @@ describe('Attachment processing', () => {
         },
       ];
 
-      const result = await processAttachments(attachments);
+      const { images: result } = await processAttachments(attachments);
 
       assert.strictEqual(result.length, 1);
       assert.strictEqual(result[0].type, 'image');
@@ -92,7 +93,7 @@ describe('Attachment processing', () => {
         },
       ];
 
-      const result = await processAttachments(attachments);
+      const { images: result } = await processAttachments(attachments);
 
       // The multipage fixture should have exactly 2 pages
       assert.strictEqual(result.length, 2);
@@ -122,7 +123,7 @@ describe('Attachment processing', () => {
         },
       ];
 
-      const result = await processAttachments(attachments);
+      const { images: result } = await processAttachments(attachments);
 
       // Only 1 page should be rasterized despite the PDF having 2 pages
       assert.strictEqual(result.length, 1);
@@ -132,6 +133,61 @@ describe('Attachment processing', () => {
         delete process.env.BOOKKEEPING_MAX_PDF_PAGES;
       } else {
         process.env.BOOKKEEPING_MAX_PDF_PAGES = originalLimit;
+      }
+    });
+  });
+
+  describe('CSV handling', () => {
+    it('writes a CSV attachment to the inbox dir and returns its path', async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), 'bookkeeping-inbox-'));
+      const originalInbox = process.env.BOOKKEEPING_INBOX_DIR;
+      process.env.BOOKKEEPING_INBOX_DIR = tmpDir;
+      try {
+        const csvText = 'date,amount,description\n2024-06-01,-42.00,Coffee Shop\n';
+        const attachments: Attachment[] = [
+          { filename: 'chase_march.csv', mimeType: 'text/csv', data: Buffer.from(csvText).toString('base64') },
+        ];
+        const { images, csvPaths } = await processAttachments(attachments);
+        assert.strictEqual(images.length, 0);
+        assert.strictEqual(csvPaths.length, 1);
+        const written = readFileSync(csvPaths[0], 'utf-8');
+        assert.strictEqual(written, csvText);
+      } finally {
+        if (originalInbox === undefined) delete process.env.BOOKKEEPING_INBOX_DIR;
+        else process.env.BOOKKEEPING_INBOX_DIR = originalInbox;
+      }
+    });
+
+    it('accepts a .csv file with an empty mimetype (browser fallback)', async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), 'bookkeeping-inbox-'));
+      const originalInbox = process.env.BOOKKEEPING_INBOX_DIR;
+      process.env.BOOKKEEPING_INBOX_DIR = tmpDir;
+      try {
+        const attachments: Attachment[] = [
+          { filename: 'export.csv', mimeType: '', data: Buffer.from('a,b\n1,2\n').toString('base64') },
+        ];
+        const { csvPaths } = await processAttachments(attachments);
+        assert.strictEqual(csvPaths.length, 1);
+      } finally {
+        if (originalInbox === undefined) delete process.env.BOOKKEEPING_INBOX_DIR;
+        else process.env.BOOKKEEPING_INBOX_DIR = originalInbox;
+      }
+    });
+
+    it('sanitizes a path-traversal filename before writing', async () => {
+      const tmpDir = mkdtempSync(join(tmpdir(), 'bookkeeping-inbox-'));
+      const originalInbox = process.env.BOOKKEEPING_INBOX_DIR;
+      process.env.BOOKKEEPING_INBOX_DIR = tmpDir;
+      try {
+        const attachments: Attachment[] = [
+          { filename: '../../etc/evil.csv', mimeType: 'text/csv', data: Buffer.from('a,b\n1,2\n').toString('base64') },
+        ];
+        const { csvPaths } = await processAttachments(attachments);
+        assert.strictEqual(csvPaths.length, 1);
+        assert.ok(csvPaths[0].startsWith(tmpDir), `expected path to stay inside ${tmpDir}, got ${csvPaths[0]}`);
+      } finally {
+        if (originalInbox === undefined) delete process.env.BOOKKEEPING_INBOX_DIR;
+        else process.env.BOOKKEEPING_INBOX_DIR = originalInbox;
       }
     });
   });
@@ -245,7 +301,7 @@ describe('Attachment processing', () => {
   describe('Edge cases', () => {
     it('should return empty array for empty attachments array', async () => {
       const result = await processAttachments([]);
-      assert.deepStrictEqual(result, []);
+      assert.deepStrictEqual(result, { images: [], csvPaths: [] });
     });
 
     it('should reject empty file content', async () => {

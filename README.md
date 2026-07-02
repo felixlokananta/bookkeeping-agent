@@ -260,7 +260,9 @@ import). Both post real, balanced double-entry transactions against the source a
 
 As of issue #11, high-confidence rules (`hits >= 2`) are applied at ingestion time, skipping the
 manual categorization step for known vendors and improving the immediate accuracy of imported data.
-Put source CSV files in `data/inbox/`.
+Put source CSV files in `data/inbox/`, or — from the web chat UI — use the upload button (or drag
+and drop) to attach a `.csv` file directly; the server saves it to `data/inbox/` and tells the
+agent where to find it.
 
 #### `log_transaction`
 Post a single confirmed transaction. Amount is major-unit and signed, same convention as

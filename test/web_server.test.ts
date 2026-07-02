@@ -18,6 +18,7 @@ describe("web_server", () => {
     const tmpDir = mkdtempSync(join("/tmp", "bookkeeping-test-"));
     process.env.BOOKKEEPING_ANOMALY_LOG_PATH = join(tmpDir, "anomaly.json");
     process.env.BOOKKEEPING_VENDOR_RULES_PATH = join(tmpDir, "vendors.json");
+    process.env.BOOKKEEPING_INBOX_DIR = join(tmpDir, "inbox");
 
     // Create and start the server on an ephemeral port
     const app = createApp();
@@ -161,6 +162,27 @@ describe("web_server", () => {
         body.includes("event: delta") ||
         body.includes("event: error") ||
         body.includes("event: tool");
+      assert.ok(hasEvent, "Response should contain at least one SSE event");
+    });
+
+    it("with valid CSV attachment and empty message returns 200 text/event-stream", async () => {
+      setIsStreaming(false);
+      const csvText = "date,amount,description\n2024-06-01,-42.00,Coffee Shop\n";
+      const csvBase64 = Buffer.from(csvText).toString("base64");
+
+      const response = await fetch(`http://localhost:${port}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: "",
+          attachments: [{ filename: "chase_march.csv", mimeType: "text/csv", data: csvBase64 }],
+        }),
+      });
+
+      assert.strictEqual(response.status, 200);
+      assert.strictEqual(response.headers.get("content-type"), "text/event-stream");
+      const body = await response.text();
+      const hasEvent = body.includes("event: delta") || body.includes("event: error") || body.includes("event: tool");
       assert.ok(hasEvent, "Response should contain at least one SSE event");
     });
 

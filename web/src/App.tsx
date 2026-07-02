@@ -30,6 +30,7 @@ interface PendingAttachment {
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // mirrors server default BOOKKEEPING_MAX_UPLOAD_BYTES
 const MAX_ATTACHMENTS = 5; // mirrors server default BOOKKEEPING_MAX_ATTACHMENTS
 const SUPPORTED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"]);
+const SUPPORTED_CSV_MIME_TYPES = new Set(["text/csv", "application/vnd.ms-excel", "application/csv"]);
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -54,12 +55,20 @@ export default function App() {
     }
   }, [isLoading]);
 
+  // Requires the filename to actually end in .csv, not just a claimed
+  // mimetype — mirrors server/attachments.ts's isCsvAttachment so a file
+  // accepted by the picker can't turn out to be rejected server-side (or an
+  // arbitrary file can't be smuggled through by claiming mimeType: "text/csv").
+  const isCsvFile = (file: File) =>
+    file.name.toLowerCase().endsWith(".csv") &&
+    (SUPPORTED_CSV_MIME_TYPES.has(file.type) || file.type === "");
+
   const addFiles = (files: FileList | File[]) => {
     const fileArray = Array.from(files);
 
     for (const file of fileArray) {
-      if (!SUPPORTED_MIME_TYPES.has(file.type)) {
-        setError(`Unsupported file type "${file.type}" for "${file.name}". Supported: PNG, JPG, GIF, WebP, PDF.`);
+      if (!SUPPORTED_MIME_TYPES.has(file.type) && !isCsvFile(file)) {
+        setError(`Unsupported file type "${file.type}" for "${file.name}". Supported: PNG, JPG, GIF, WebP, PDF, CSV.`);
         return;
       }
       if (file.size > MAX_UPLOAD_BYTES) {
@@ -387,7 +396,7 @@ export default function App() {
             type="file"
             ref={fileInputRef}
             multiple
-            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf"
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf,text/csv,.csv"
             onChange={(e) => {
               if (e.target.files) {
                 addFiles(e.target.files);

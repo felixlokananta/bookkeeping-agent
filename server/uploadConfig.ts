@@ -31,3 +31,13 @@ export const SUPPORTED_ATTACHMENT_MIME_TYPES = new Set([
   'image/webp',
   'application/pdf',
 ]);
+
+export const SUPPORTED_CSV_MIME_TYPES = new Set([
+  'text/csv',
+  'application/vnd.ms-excel',
+  'application/csv',
+]);
+
+export function getInboxDir(): string {
+  return process.env.BOOKKEEPING_INBOX_DIR ?? 'data/inbox';
+}
