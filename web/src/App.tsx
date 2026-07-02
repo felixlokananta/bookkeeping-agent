@@ -1,5 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import "./App.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
 
 interface ApprovalInfo {
   toolName: string;
@@ -37,11 +40,19 @@ export default function App() {
   const [isDragOver, setIsDragOver] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Refocus input when loading finishes
+  useEffect(() => {
+    if (!isLoading) {
+      textInputRef.current?.focus();
+    }
+  }, [isLoading]);
 
   const addFiles = (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -282,7 +293,11 @@ export default function App() {
           {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
               <div className="message-content">
-                {msg.text}
+                {msg.role === "assistant" ? (
+                  <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>{msg.text}</ReactMarkdown>
+                ) : (
+                  msg.text
+                )}
                 {msg.attachmentNames && msg.attachmentNames.length > 0 && (
                   <div className="message-attachments">
                     {msg.attachmentNames.map((name, i) => (
@@ -391,6 +406,7 @@ export default function App() {
           </button>
           <input
             type="text"
+            ref={textInputRef}
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={handleKeyPress}
