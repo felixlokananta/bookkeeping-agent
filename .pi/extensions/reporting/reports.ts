@@ -234,6 +234,10 @@ export function incomeStatement(
  * Includes retained earnings (cumulative net income) to satisfy Assets = Liabilities + Equity.
  *
  * Returns { assets, liabilities, equityAccounts, retainedEarnings, totalAssetsMinor, totalLiabilitiesAndEquityMinor }
+ *
+ * Note: equityAccounts includes a synthetic "Retained Earnings" row (cumulative net income) alongside
+ * posted equity accounts whenever it's non-zero, so its entries always sum to totalEquityMinor.
+ * retainedEarnings is also returned standalone for callers that need the raw figure without walking the array.
  */
 export interface BalanceSheetOpts {
   asOf: string;
@@ -318,6 +322,11 @@ export function balanceSheet(ledger: Ledger, opts: BalanceSheetOpts): BalanceShe
   // Calculate retained earnings: cumulative net income to date (no lower bound)
   const incomeStatementAllTime = incomeStatement(ledger, { endDate: asOf });
   const retainedEarnings = incomeStatementAllTime.netIncomeMinor;
+
+  // Add synthetic "Retained Earnings" row to equityAccounts if non-zero
+  if (retainedEarnings !== 0) {
+    equityAccounts.push({ accountName: 'Retained Earnings', totalMinor: retainedEarnings });
+  }
 
   // Total liabilities and equity = liabilities + equity + retained earnings
   const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor + retainedEarnings;

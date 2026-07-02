@@ -329,9 +329,6 @@ export function formatBalanceSheet(result: BalanceSheetResult): string {
   for (const item of result.equityAccounts) {
     text += `  ${item.accountName}: $${formatMoney(item.totalMinor)}\n`;
   }
-  if (result.retainedEarnings !== 0) {
-    text += `  Retained Earnings: $${formatMoney(result.retainedEarnings)}\n`;
-  }
   text += `Total Equity: $${formatMoney(result.totalEquityMinor)}\n\n`;
 
   text += `Total Liabilities + Equity: $${formatMoney(result.totalLiabilitiesAndEquityMinor)}\n\n`;
