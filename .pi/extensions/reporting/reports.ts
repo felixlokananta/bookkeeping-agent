@@ -66,6 +66,10 @@ export function spendingByCategory(
 ): SpendingCategory[] {
   const { startDate, endDate, rootAccount = 'Expenses' } = opts;
 
+  // Build a map of all accounts by ID to avoid N+1 resolveAccount calls
+  const allAccounts = listAccounts(ledger);
+  const accountMap = new Map(allAccounts.map((a) => [a.id, a]));
+
   // Resolve the root account
   const rootAcc = resolveAccount(ledger, rootAccount);
 
@@ -91,14 +95,14 @@ export function spendingByCategory(
   // Build a map of accountId -> totalMinor (in natural balance)
   const balances = new Map<number, number>();
   for (const row of rows) {
-    const acc = resolveAccount(ledger, row.account_id);
+    const acc = accountMap.get(row.account_id)!;
     balances.set(row.account_id, toNatural(acc, row.total_amount));
   }
 
   // Build the tree structure recursively
   function buildTree(accountId: number): SpendingCategory | null {
     const balance = balances.get(accountId);
-    const acc = resolveAccount(ledger, accountId);
+    const acc = accountMap.get(accountId)!;
 
     // Get direct children and build their subtrees
     const children: SpendingCategory[] = [];
@@ -370,6 +374,9 @@ export function taxYearExport(ledger: Ledger, opts: TaxYearExportOpts): TaxYearR
   );
   const accountIds = relevantAccounts.map((a) => a.id);
 
+  // Build a map to avoid N+1 resolveAccount calls
+  const accountMap = new Map(allAccounts.map((a) => [a.id, a]));
+
   if (accountIds.length === 0) {
     return [];
   }
@@ -396,7 +403,7 @@ export function taxYearExport(ledger: Ledger, opts: TaxYearExportOpts): TaxYearR
   // Convert to export rows
   const result: TaxYearRow[] = [];
   for (const row of rows) {
-    const acc = resolveAccount(ledger, row.account_id);
+    const acc = accountMap.get(row.account_id)!;
     result.push({
       date: row.date,
       accountName: acc.name,

@@ -31,6 +31,9 @@ export function loadAutoPostLimitMinor(): number {
         `BOOKKEEPING_AUTOPOST_LIMIT env var must be a valid number, got: ${envOverride}`
       );
     }
+    if (major < 0) {
+      throw new Error(`BOOKKEEPING_AUTOPOST_LIMIT must be >= 0, got: ${envOverride}`);
+    }
     return toMinor(major);
   }
 
@@ -52,6 +55,11 @@ export function loadAutoPostLimitMinor(): number {
   } catch (err) {
     // File missing or unreadable; fall back to default
     // console.warn(`Could not read policies.yaml, using default limit: ${limitMajor}`);
+  }
+
+  // Validate that limitMajor is non-negative (outside try/catch so it's not swallowed)
+  if (limitMajor < 0) {
+    throw new Error(`config/policies.yaml auto_post_limit must be >= 0, got: ${limitMajor}`);
   }
 
   cachedLimitMinor = toMinor(limitMajor);
