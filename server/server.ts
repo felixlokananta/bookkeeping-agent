@@ -4,6 +4,8 @@ import { fileURLToPath } from "url";
 import { getChatSession, setIsStreaming, getIsStreaming } from "./chatSession.js";
 import { writeSseEvent } from "./sse.js";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { processAttachments, AttachmentError, type Attachment } from "./attachments.js";
+import { getMaxUploadBytes, getMaxAttachments } from "./uploadConfig.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cwd = path.dirname(__dirname);
@@ -11,17 +13,39 @@ const cwd = path.dirname(__dirname);
 export function createApp() {
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: getMaxUploadBytes() * getMaxAttachments() * 2 }));
   app.use(express.static(path.join(cwd, "web/dist")));
 
   app.post("/chat", async (req, res) => {
-    const { message } = req.body;
+    const { message, attachments } = req.body;
 
-    // Validate message
-    if (!message || typeof message !== "string" || message.trim() === "") {
+    // Validate message and attachments
+    const hasText = typeof message === "string" && message.trim() !== "";
+    if (attachments !== undefined && !Array.isArray(attachments)) {
+      res.status(400).json({ error: "attachments must be an array" });
+      return;
+    }
+    const rawAttachments: unknown[] = Array.isArray(attachments) ? attachments : [];
+
+    if (!hasText && rawAttachments.length === 0) {
       res.status(400).json({ error: "Missing or empty message" });
       return;
     }
+
+    let images: { type: "image"; data: string; mimeType: string }[] = [];
+    if (rawAttachments.length > 0) {
+      try {
+        images = await processAttachments(rawAttachments as Attachment[]);
+      } catch (err) {
+        if (err instanceof AttachmentError) {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        throw err;
+      }
+    }
+
+    const effectiveMessage = hasText ? (message as string) : "Process the attached file(s).";
 
     // Check if already streaming
     if (getIsStreaming()) {
@@ -78,7 +102,7 @@ export function createApp() {
       });
 
       try {
-        await session.prompt(message);
+        await session.prompt(effectiveMessage, images.length > 0 ? { images } : undefined);
       } catch (error) {
         if (!clientDisconnected) {
           const errorMessage =

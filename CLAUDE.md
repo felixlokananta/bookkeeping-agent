@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A SQLite-backed double-entry ledger exposed as a `pi` coding-agent extension set — a natural-language bookkeeping assistant, not a traditional web app. There is no server/UI; the ledger is manipulated entirely through registered tools that the `pi` agent calls in response to chat.
+A SQLite-backed double-entry ledger exposed as a `pi` coding-agent extension set — a natural-language bookkeeping assistant. The ledger is manipulated entirely through registered tools that the `pi` agent calls in response to chat; a web chat front end (`web/`) and Node/Express backend (`server/`) bridge browser users to the same agent session over SSE, including image/PDF file uploads.
 
 ## Commands
 
@@ -30,7 +30,7 @@ Each feature lives in its own self-contained `pi` extension under `.pi/extension
 
 1. **`bookkeeping`** — ledger core (`ledger.ts`, `schema.ts`, `money.ts`, `policy.ts`). Pi-agnostic and independently unit-testable; every other extension imports from here rather than touching SQLite directly.
 2. **`bank_sync`** — ingestion (`log_transaction`, `import_csv`), posts against auto-created `Expenses:Uncategorized`/`Income:Uncategorized`.
-3. **`receipt_ocr`** — image-only receipt/invoice capture (`read_receipt`, `capture_receipt`); PDF explicitly rejected in v1.
+3. **`receipt_ocr`** — receipt/invoice capture (`read_receipt`, `capture_receipt`) from images and PDFs (PDFs rasterized to PNG, first page only, via `pdf-to-img`).
 4. **`categorization`** — moves splits out of the Uncategorized accounts using learned vendor-pattern rules (`memory/vendor_rules.json`).
 5. **`reporting`** — read-only financial reports/tax export over the posted ledger (`spending_by_category`, `income_statement`, `balance_sheet`, `tax_year_export`).
 6. **`reconciliation`** — bank reconciliation and ledger integrity verification (`reconcile_account`, `verify_ledger`); read-mostly, with optional persistence of reconciliation runs.

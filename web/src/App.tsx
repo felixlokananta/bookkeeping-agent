@@ -4,39 +4,136 @@ import "./App.css";
 interface Message {
   role: "user" | "assistant";
   text: string;
+  attachmentNames?: string[];
 }
+
+interface PendingAttachment {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024; // mirrors server default BOOKKEEPING_MAX_UPLOAD_BYTES
+const MAX_ATTACHMENTS = 5; // mirrors server default BOOKKEEPING_MAX_ATTACHMENTS
+const SUPPORTED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"]);
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const addFiles = (files: FileList | File[]) => {
+    const fileArray = Array.from(files);
+    let hasError = false;
+
+    for (const file of fileArray) {
+      if (!SUPPORTED_MIME_TYPES.has(file.type)) {
+        setError(`Unsupported file type "${file.type}" for "${file.name}". Supported: PNG, JPG, GIF, WebP, PDF.`);
+        hasError = true;
+        break;
+      }
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setError(
+          `"${file.name}" is too large (${Math.ceil(file.size / 1024 / 1024)}MB, max ${Math.ceil(MAX_UPLOAD_BYTES / 1024 / 1024)}MB)`
+        );
+        hasError = true;
+        break;
+      }
+    }
+
+    if (hasError) return;
+
+    setPendingAttachments((prev) => {
+      const updated = [...prev];
+      for (const file of fileArray) {
+        if (updated.length >= MAX_ATTACHMENTS) {
+          setError(`Too many attachments: max ${MAX_ATTACHMENTS} per message`);
+          break;
+        }
+        const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
+        updated.push({ id: Math.random().toString(36), file, previewUrl });
+      }
+      return updated;
+    });
+  };
+
+  const removeAttachment = (id: string) => {
+    setPendingAttachments((prev) => {
+      const updated = prev.filter((att) => att.id !== id);
+      const toRemove = prev.find((att) => att.id === id);
+      if (toRemove?.previewUrl) {
+        URL.revokeObjectURL(toRemove.previewUrl);
+      }
+      return updated;
+    });
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const result = reader.result as string;
+        const base64 = result.split(",")[1]; // strip "data:...;base64," prefix
+        resolve(base64);
+      };
+      reader.onerror = reject;
+    });
+  };
+
   const handleSend = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
 
     const userMessage = inputValue;
+    const attachmentsToSend = [...pendingAttachments];
+
     setInputValue("");
     setError(null);
+    setPendingAttachments([]);
+    for (const att of attachmentsToSend) {
+      if (att.previewUrl) {
+        URL.revokeObjectURL(att.previewUrl);
+      }
+    }
 
     // Add user message to UI
-    setMessages((prev) => [...prev, { role: "user", text: userMessage }]);
+    setMessages((prev) => [...prev, {
+      role: "user",
+      text: userMessage,
+      attachmentNames: attachmentsToSend.map((a) => a.file.name),
+    }]);
 
     // Add placeholder for assistant message
     setMessages((prev) => [...prev, { role: "assistant", text: "" }]);
     setIsLoading(true);
 
     try {
+      // Base64 encode all attachments
+      const attachments = await Promise.all(
+        attachmentsToSend.map(async (att) => ({
+          filename: att.file.name,
+          mimeType: att.file.type,
+          data: await fileToBase64(att.file),
+        }))
+      );
+
       const response = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage }),
+        body: JSON.stringify({
+          message: userMessage,
+          ...(attachments.length > 0 && { attachments }),
+        }),
       });
 
       if (!response.ok) {
@@ -126,11 +223,34 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="chat-container">
+      <div
+        className={`chat-container ${isDragOver ? "drag-over" : ""}`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setIsDragOver(true);
+        }}
+        onDragLeave={() => setIsDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+          addFiles(e.dataTransfer.files);
+        }}
+      >
         <div className="messages">
           {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}`}>
-              <div className="message-content">{msg.text}</div>
+              <div className="message-content">
+                {msg.text}
+                {msg.attachmentNames && msg.attachmentNames.length > 0 && (
+                  <div className="message-attachments">
+                    {msg.attachmentNames.map((name, i) => (
+                      <span key={i} className="message-attachment-tag">
+                        📎 {name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           ))}
           <div ref={messagesEndRef} />
@@ -138,7 +258,50 @@ export default function App() {
 
         {error && <div className="error-banner">{error}</div>}
 
+        {pendingAttachments.length > 0 && (
+          <div className="attachment-preview-strip">
+            {pendingAttachments.map((att) => (
+              <div key={att.id} className="attachment-thumbnail">
+                {att.previewUrl ? (
+                  <img src={att.previewUrl} alt={att.file.name} />
+                ) : (
+                  <div className="attachment-file-icon">📄</div>
+                )}
+                <div className="attachment-filename">{att.file.name}</div>
+                <button
+                  className="attachment-remove-btn"
+                  onClick={() => removeAttachment(att.id)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="input-area">
+          <input
+            type="file"
+            ref={fileInputRef}
+            multiple
+            accept="image/png,image/jpeg,image/gif,image/webp,application/pdf"
+            onChange={(e) => {
+              if (e.target.files) {
+                addFiles(e.target.files);
+                e.target.value = "";
+              }
+            }}
+            style={{ display: "none" }}
+          />
+          <button
+            className="attach-button"
+            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            disabled={isLoading}
+          >
+            📎
+          </button>
           <input
             type="text"
             value={inputValue}
@@ -147,7 +310,7 @@ export default function App() {
             placeholder="Ask the bookkeeping agent..."
             disabled={isLoading}
           />
-          <button onClick={handleSend} disabled={isLoading || !inputValue.trim()}>
+          <button onClick={handleSend} disabled={isLoading || (!inputValue.trim() && pendingAttachments.length === 0)}>
             {isLoading ? "Sending..." : "Send"}
           </button>
         </div>
