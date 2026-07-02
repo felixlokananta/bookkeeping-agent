@@ -64,7 +64,7 @@ const FUZZY_MATCH_STOPLIST = new Set([
 /**
  * Normalize a description for fuzzy comparison: lowercase, alphanumeric only.
  */
-function normalizeDescription(desc: string | null | undefined): string {
+export function normalizeDescription(desc: string | null | undefined): string {
   return (desc || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 
@@ -72,7 +72,7 @@ function normalizeDescription(desc: string | null | undefined): string {
  * Fuzzy-match two normalized descriptions: match if one contains the other,
  * or they share a token of length >= 4 (excluding stoplist tokens).
  */
-function fuzzyMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+export function fuzzyMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   const normA = normalizeDescription(a);
   const normB = normalizeDescription(b);
   if (!normA || !normB) return false;
