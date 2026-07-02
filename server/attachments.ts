@@ -1,11 +1,16 @@
 import { pdf } from 'pdf-to-img';
 import { resizeImage } from '@earendil-works/pi-coding-agent';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, basename } from 'node:path';
+import { randomBytes } from 'node:crypto';
 import {
   getMaxUploadBytes,
   getMaxAttachments,
   getMaxPdfPages,
   getMaxImagesPerMessage,
   SUPPORTED_ATTACHMENT_MIME_TYPES,
+  SUPPORTED_CSV_MIME_TYPES,
+  getInboxDir,
 } from './uploadConfig.js';
 
 export class AttachmentError extends Error {}
@@ -20,6 +25,11 @@ export interface ProcessedImage {
   type: 'image';
   data: string;
   mimeType: string;
+}
+
+function isCsvAttachment(att: Attachment): boolean {
+  if (SUPPORTED_CSV_MIME_TYPES.has(att.mimeType)) return true;
+  return att.mimeType === '' && att.filename.toLowerCase().endsWith('.csv');
 }
 
 // Mirrors .pi/extensions/receipt_ocr/capture.ts's post-load resizeImage step:
@@ -61,8 +71,8 @@ async function rasterizePdfPages(fileBuffer: Buffer, maxPages: number): Promise<
   }
 }
 
-export async function processAttachments(attachments: Attachment[]): Promise<ProcessedImage[]> {
-  if (attachments.length === 0) return [];
+export async function processAttachments(attachments: Attachment[]): Promise<{ images: ProcessedImage[]; csvPaths: string[] }> {
+  if (attachments.length === 0) return { images: [], csvPaths: [] };
 
   const maxAttachments = getMaxAttachments();
   if (attachments.length > maxAttachments) {
@@ -73,13 +83,14 @@ export async function processAttachments(attachments: Attachment[]): Promise<Pro
   const maxPdfPages = getMaxPdfPages();
   const maxImages = getMaxImagesPerMessage();
   const images: ProcessedImage[] = [];
+  const csvPaths: string[] = [];
 
   for (const att of attachments) {
     if (!att || typeof att.filename !== 'string' || typeof att.mimeType !== 'string' || typeof att.data !== 'string') {
       throw new AttachmentError('Malformed attachment: filename, mimeType, and data are required');
     }
-    if (!SUPPORTED_ATTACHMENT_MIME_TYPES.has(att.mimeType)) {
-      throw new AttachmentError(`Unsupported file type "${att.mimeType}" for "${att.filename}". Supported: PNG, JPG, GIF, WebP, PDF.`);
+    if (!SUPPORTED_ATTACHMENT_MIME_TYPES.has(att.mimeType) && !isCsvAttachment(att)) {
+      throw new AttachmentError(`Unsupported file type "${att.mimeType}" for "${att.filename}". Supported: PNG, JPG, GIF, WebP, PDF, CSV.`);
     }
 
     const raw = Buffer.from(att.data, 'base64');
@@ -92,7 +103,15 @@ export async function processAttachments(attachments: Attachment[]): Promise<Pro
       );
     }
 
-    if (att.mimeType === 'application/pdf') {
+    if (isCsvAttachment(att)) {
+      const dir = getInboxDir();
+      mkdirSync(dir, { recursive: true });
+      const safeName = basename(att.filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+      const uniqueName = `${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`;
+      const fullPath = join(dir, uniqueName);
+      writeFileSync(fullPath, raw);
+      csvPaths.push(fullPath);
+    } else if (att.mimeType === 'application/pdf') {
       const pages = await rasterizePdfPages(raw, maxPdfPages);
       for (const pageBuffer of pages) {
         images.push(await toResizedImage(pageBuffer, 'image/png'));
@@ -106,5 +125,5 @@ export async function processAttachments(attachments: Attachment[]): Promise<Pro
     }
   }
 
-  return images;
+  return { images, csvPaths };
 }

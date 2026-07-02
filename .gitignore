@@ -3,6 +3,10 @@ data/*.db
 *.db-wal
 *.db-shm
 
+# Uploaded CSVs saved by the server (may contain real bank data)
+data/inbox/*
+!data/inbox/.gitkeep
+
 # Node modules
 node_modules/
 web/node_modules/

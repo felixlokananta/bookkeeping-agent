@@ -42,9 +42,10 @@ export function createApp() {
     }
 
     let images: { type: "image"; data: string; mimeType: string }[] = [];
+    let csvPaths: string[] = [];
     if (rawAttachments.length > 0) {
       try {
-        images = await processAttachments(rawAttachments as Attachment[]);
+        ({ images, csvPaths } = await processAttachments(rawAttachments as Attachment[]));
       } catch (err) {
         if (err instanceof AttachmentError) {
           res.status(400).json({ error: err.message });
@@ -54,7 +55,12 @@ export function createApp() {
       }
     }
 
-    const effectiveMessage = hasText ? (message as string) : "Process the attached file(s).";
+    const baseMessage = hasText ? (message as string) : "Process the attached file(s).";
+    const csvNote =
+      csvPaths.length > 0
+        ? `\n\n[Uploaded CSV file(s) saved to: ${csvPaths.join(", ")}. Use import_csv to import them.]`
+        : "";
+    const effectiveMessage = baseMessage + csvNote;
 
     // Set SSE headers
     res.setHeader("Content-Type", "text/event-stream");
