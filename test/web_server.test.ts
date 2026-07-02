@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { createApp } from "../server/server.js";
-import { getChatSession } from "../server/chatSession.js";
+import { getChatSession, setIsStreaming } from "../server/chatSession.js";
 import type { Server } from "http";
 
 describe("web_server", () => {
@@ -75,33 +75,37 @@ describe("web_server", () => {
     assert.ok(hasEvent, "Response should contain at least one SSE event");
   });
 
-  it("concurrent POST /chat returns 409", async () => {
-    // Start first request. Awaiting the fetch Promise itself (rather than a
-    // fixed sleep) is the reliable synchronization point: the server only
-    // flushes response headers to the client on the first res.write(), which
-    // happens well after setIsStreaming(true) runs in the handler. A fixed
-    // setTimeout race lost intermittently on slower/shared CI runners
-    // (200 instead of 409) because there's no guarantee the first request's
-    // handler reaches setIsStreaming(true) within an arbitrary wall-clock
-    // window.
-    const firstResponse = await fetch(`http://localhost:${port}/chat`, {
+  it("concurrent POST /chat returns 409 while a request is in flight", async () => {
+    // This can't be tested by racing two real HTTP requests against each
+    // other: the window during which the lock is held is entirely
+    // determined by how long session.prompt()'s upstream model call takes,
+    // which this test doesn't control. Locally (with an authenticated ~/.pi
+    // session) that call is slow (real network round trip), so two
+    // overlapping requests reliably collide. In CI there's no model
+    // credential, so the call fails immediately and the *entire* request
+    // (lock set -> error -> lock released) completes within a handful of
+    // synchronous microtask turns -- faster than the client can even
+    // observe the first response, let alone dispatch a second request into
+    // the lock window. So instead, drive the lock directly to test the
+    // actual contract: reject while streaming, accept once released.
+    setIsStreaming(true);
+    try {
+      const response = await fetch(`http://localhost:${port}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Second message" }),
+      });
+      assert.strictEqual(response.status, 409);
+    } finally {
+      setIsStreaming(false);
+    }
+
+    const followUp = await fetch(`http://localhost:${port}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "First message" }),
+      body: JSON.stringify({ message: "Follow-up message" }),
     });
-
-    // Try second request
-    const secondResponse = await fetch(`http://localhost:${port}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "Second message" }),
-    });
-
-    assert.strictEqual(secondResponse.status, 409);
-
-    // Drain the first response's stream to let it complete cleanly.
-    await firstResponse.text();
-    assert.strictEqual(firstResponse.status, 200);
+    assert.strictEqual(followUp.status, 200);
   });
 
   it("session tools exclude bash/read/edit/write and include ledger tools", async () => {
