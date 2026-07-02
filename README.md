@@ -602,15 +602,31 @@ bookkeeping-agent/
 │       │   ├── index.ts                   # Pi extension adapter (spending_by_category, income_statement, balance_sheet, tax_year_export)
 │       │   ├── reports.ts                 # Reporting core (reads ledger, no mutation)
 │       │   └── csv.ts                     # CSV export core
-│       ├── reconciliation/EXTENSION.md    # Future skeleton
-│       └── invoicing/EXTENSION.md         # Future skeleton
+│       ├── reconciliation/                # Issue #22: bank reconciliation and ledger verification
+│       │   ├── EXTENSION.md
+│       │   ├── package.json
+│       │   ├── tsconfig.json
+│       │   ├── index.ts                   # Pi extension adapter (reconcile_account, verify_ledger)
+│       │   ├── reconcile.ts               # Reconciliation core
+│       │   └── verify.ts                  # Ledger verification core
+│       └── invoicing/                     # Issue #23: invoice generation and accounts receivable
+│           ├── EXTENSION.md
+│           ├── package.json
+│           ├── tsconfig.json
+│           ├── index.ts                   # Pi extension adapter (create_invoice, list_invoices, record_payment, render_invoice, ar_aging)
+│           ├── invoices.ts                # Invoice creation, listing, and payment recording core
+│           ├── aging.ts                   # AR aging report core
+│           ├── render.ts                  # Invoice rendering core
+│           └── store.ts                   # Invoice JSON storage and numbering
 │
 └── test/
     ├── ledger.test.ts                     # Node:test unit tests for the ledger core
     ├── ingestion.test.ts                  # Node:test unit tests for bank_sync
     ├── receipt_ocr.test.ts                # Node:test unit tests for receipt_ocr
     ├── categorization.test.ts             # Node:test unit tests for categorization
-    └── reporting.test.ts                  # Node:test unit tests for reporting
+    ├── reporting.test.ts                  # Node:test unit tests for reporting
+    ├── reconciliation.test.ts             # Node:test unit tests for reconciliation
+    └── invoicing.test.ts                  # Node:test unit tests for invoicing
 ```
 
 ## Architecture
@@ -669,6 +685,8 @@ The `index.ts` module adapts the ledger to pi's tool interface:
 - **Issue #5:** Reporting (financial statements and tax export) ✓
 - **Issue #11:** Auto-categorize transactions at ingestion time ✓
 - **Issue #12:** PDF support in receipt_ocr (first page only via rasterization) ✓
+- **Issue #22:** Bank reconciliation and ledger verification ✓
+- **Issue #23:** Invoice generation and accounts receivable ✓
 
 ## References
 
