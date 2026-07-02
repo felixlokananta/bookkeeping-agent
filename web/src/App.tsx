@@ -1,10 +1,21 @@
 import { useState, useRef, useEffect } from "react";
 import "./App.css";
 
+interface ApprovalInfo {
+  toolName: string;
+  description: string;
+  amount: number;
+  accounts: string[];
+  limit: number;
+  status: "pending" | "resolved";
+  decision?: "approve" | "reject";
+}
+
 interface Message {
   role: "user" | "assistant";
   text: string;
   attachmentNames?: string[];
+  approval?: ApprovalInfo;
 }
 
 interface PendingAttachment {
@@ -91,34 +102,11 @@ export default function App() {
     });
   };
 
-  const handleSend = async () => {
-    if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
-
-    const userMessage = inputValue;
-    const attachmentsToSend = [...pendingAttachments];
-
-    setInputValue("");
-    setError(null);
-    setPendingAttachments([]);
-    for (const att of attachmentsToSend) {
-      if (att.previewUrl) {
-        URL.revokeObjectURL(att.previewUrl);
-      }
-    }
-
-    // Add user message to UI
-    setMessages((prev) => [...prev, {
-      role: "user",
-      text: userMessage,
-      attachmentNames: attachmentsToSend.map((a) => a.file.name),
-    }]);
-
-    // Add placeholder for assistant message
+  const sendToAgent = async (text: string, attachmentsToSend: PendingAttachment[]) => {
     setMessages((prev) => [...prev, { role: "assistant", text: "" }]);
     setIsLoading(true);
 
     try {
-      // Base64 encode all attachments
       const attachments = await Promise.all(
         attachmentsToSend.map(async (att) => ({
           filename: att.file.name,
@@ -131,7 +119,7 @@ export default function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: userMessage,
+          message: text,
           ...(attachments.length > 0 && { attachments }),
         }),
       });
@@ -149,9 +137,6 @@ export default function App() {
       const decoder = new TextDecoder();
       let buffer = "";
 
-      // Each SSE frame is terminated by a blank line ("\n\n"). Splitting on
-      // that (rather than single "\n") keeps a frame intact even if a
-      // network chunk boundary falls between its "event:" and "data:" lines.
       const processFrame = (frame: string) => {
         let eventType: string | null = null;
         let dataLine: string | null = null;
@@ -168,7 +153,6 @@ export default function App() {
           const data = JSON.parse(dataLine);
 
           if (eventType === "delta" && data.text) {
-            // Append text to the last assistant message
             setMessages((prev) => {
               const updated = [...prev];
               if (updated[updated.length - 1]?.role === "assistant") {
@@ -176,10 +160,25 @@ export default function App() {
               }
               return updated;
             });
+          } else if (eventType === "approval_required") {
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                text: "",
+                approval: {
+                  toolName: data.toolName,
+                  description: data.description,
+                  amount: data.amount,
+                  accounts: data.accounts,
+                  limit: data.limit,
+                  status: "pending",
+                },
+              },
+            ]);
           } else if (eventType === "error") {
             setError(data.message || "Unknown error");
           }
-          // Ignore "tool" events for now (used for UI polish later)
         } catch (e) {
           console.error("Failed to parse SSE data:", dataLine, e);
         }
@@ -192,26 +191,69 @@ export default function App() {
         buffer += decoder.decode(value, { stream: true });
 
         const frames = buffer.split("\n\n");
-        buffer = frames.pop() ?? ""; // keep the trailing incomplete frame
+        buffer = frames.pop() ?? "";
 
         for (const frame of frames) {
           processFrame(frame);
         }
       }
 
-      // Handle a final frame that wasn't followed by a trailing blank line.
       if (buffer.trim()) {
         processFrame(buffer);
       }
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Unknown error";
+      const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(errorMessage);
-      // Remove the empty assistant message on error
       setMessages((prev) => prev.slice(0, -1));
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSend = async () => {
+    if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
+
+    const userMessage = inputValue;
+    const attachmentsToSend = [...pendingAttachments];
+
+    setInputValue("");
+    setError(null);
+    setPendingAttachments([]);
+    for (const att of attachmentsToSend) {
+      if (att.previewUrl) {
+        URL.revokeObjectURL(att.previewUrl);
+      }
+    }
+
+    setMessages((prev) => [...prev, {
+      role: "user",
+      text: userMessage,
+      attachmentNames: attachmentsToSend.map((a) => a.file.name),
+    }]);
+
+    await sendToAgent(userMessage, attachmentsToSend);
+  };
+
+  const handleApprovalAction = async (msgIndex: number, decision: "approve" | "reject") => {
+    if (isLoading) return;
+
+    setMessages((prev) => {
+      const updated = [...prev];
+      const msg = updated[msgIndex];
+      if (msg?.approval) {
+        updated[msgIndex] = { ...msg, approval: { ...msg.approval, status: "resolved", decision } };
+      }
+      return updated;
+    });
+
+    const displayText = decision === "approve" ? "Approved" : "Rejected";
+    const agentText =
+      decision === "approve"
+        ? "Approved — please proceed with posting the transaction now, passing approved: true so it isn't blocked by the auto-post limit."
+        : "Rejected — please do not post this transaction.";
+
+    setMessages((prev) => [...prev, { role: "user", text: displayText }]);
+    await sendToAgent(agentText, []);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -248,6 +290,51 @@ export default function App() {
                         📎 {name}
                       </span>
                     ))}
+                  </div>
+                )}
+                {msg.approval && (
+                  <div className="approval-card">
+                    <div className="approval-card-header">Approval needed</div>
+                    <div className="approval-card-row">
+                      <span className="approval-card-label">Description</span>
+                      <span>{msg.approval.description}</span>
+                    </div>
+                    <div className="approval-card-row">
+                      <span className="approval-card-label">Amount</span>
+                      <span>${Math.abs(msg.approval.amount).toFixed(2)}</span>
+                    </div>
+                    <div className="approval-card-row">
+                      <span className="approval-card-label">Account(s)</span>
+                      <span>{msg.approval.accounts.join(", ")}</span>
+                    </div>
+                    <div className="approval-card-row">
+                      <span className="approval-card-label">Auto-post limit</span>
+                      <span>${msg.approval.limit.toFixed(2)}</span>
+                    </div>
+                    {msg.approval.status === "pending" ? (
+                      <div className="approval-card-actions">
+                        <button
+                          className="approval-approve-btn"
+                          onClick={() => handleApprovalAction(idx, "approve")}
+                          disabled={isLoading}
+                          type="button"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="approval-reject-btn"
+                          onClick={() => handleApprovalAction(idx, "reject")}
+                          disabled={isLoading}
+                          type="button"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="approval-card-decision">
+                        {msg.approval.decision === "approve" ? "Approved" : "Rejected"}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

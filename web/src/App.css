@@ -242,3 +242,59 @@ button:disabled {
   background: rgba(0, 123, 255, 0.1);
   color: #007bff;
 }
+
+.approval-card {
+  margin-top: 10px;
+  padding: 12px 16px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 8px;
+  color: #333;
+}
+
+.approval-card-header {
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #8a6d00;
+}
+
+.approval-card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.approval-card-label {
+  color: #777;
+}
+
+.approval-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.approval-approve-btn {
+  background: #28a745;
+}
+
+.approval-approve-btn:hover:not(:disabled) {
+  background: #218838;
+}
+
+.approval-reject-btn {
+  background: #dc3545;
+}
+
+.approval-reject-btn:hover:not(:disabled) {
+  background: #c82333;
+}
+
+.approval-card-decision {
+  margin-top: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  color: #555;
+}

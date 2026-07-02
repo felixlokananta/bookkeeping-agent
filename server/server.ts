@@ -6,6 +6,7 @@ import { writeSseEvent } from "./sse.js";
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { processAttachments, AttachmentError, type Attachment } from "./attachments.js";
 import { getMaxUploadBytes, getMaxAttachments } from "./uploadConfig.js";
+import { detectAutoPostBlock } from "./approvalDetection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cwd = path.dirname(__dirname);
@@ -80,6 +81,9 @@ export function createApp() {
       setIsStreaming(true);
       const session = await getChatSession();
 
+      // Track tool call arguments for approval detection
+      const pendingToolArgs = new Map<string, { toolName: string; args: any }>();
+
       // Subscribe to session events
       const unsubscribe = session.subscribe((event: AgentSessionEvent) => {
         if (clientDisconnected) return;
@@ -91,11 +95,22 @@ export function createApp() {
             text: event.assistantMessageEvent.delta,
           });
         } else if (event.type === "tool_execution_start") {
+          pendingToolArgs.set(event.toolCallId, { toolName: event.toolName, args: event.args });
           writeSseEvent(res, "tool", {
             status: "start",
             toolName: event.toolName,
           });
         } else if (event.type === "tool_execution_end") {
+          const pending = pendingToolArgs.get(event.toolCallId);
+          pendingToolArgs.delete(event.toolCallId);
+
+          const approval = pending
+            ? detectAutoPostBlock(event.toolCallId, event.toolName, pending.args, event.result, event.isError)
+            : null;
+          if (approval) {
+            writeSseEvent(res, "approval_required", approval);
+          }
+
           writeSseEvent(res, "tool", {
             status: "end",
             toolName: event.toolName,
