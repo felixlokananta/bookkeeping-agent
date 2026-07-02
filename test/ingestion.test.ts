@@ -243,7 +243,8 @@ describe('bank_sync ingestion', () => {
       });
 
       // Try to find duplicates for "PAYMENT TO BOB" at same date/amount
-      // Should NOT match because "payment" and "to" are stoplist tokens, and "alice" != "bob"
+      // Should NOT match: "payment" is a stoplist token, "to" is below the length>=4
+      // threshold, and "alice" != "bob"
       const matches = findLikelyDuplicates(ledger, {
         account: 'Assets:Checking',
         amountMinor: -10000,
@@ -253,14 +254,15 @@ describe('bank_sync ingestion', () => {
       assert.strictEqual(matches.length, 0);
     });
 
-    it('still flags genuine fuzzy match even with stoplist tokens present', () => {
-      // Re-verify that the existing Trader Joe's test still works
-      // This ensures the stoplist doesn't break legitimate fuzzy matching
+    it('still flags a fuzzy match when a stoplist token is present alongside a genuine signal token', () => {
+      // "purchase" is a stoplist token and gets filtered out, but "trader" (>= 4 chars)
+      // still overlaps with the original "Trader Joe's #123" description, so this
+      // should still be flagged.
       const matches = findLikelyDuplicates(ledger, {
         account: 'Assets:Checking',
         amountMinor: -5520,
         date: '2024-06-01',
-        description: 'TRADER JOES 123 SEATTLE',
+        description: 'TRADER JOES PURCHASE SEATTLE',
       });
       assert.strictEqual(matches.length, 1);
     });

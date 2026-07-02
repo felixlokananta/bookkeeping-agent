@@ -14,7 +14,7 @@
   "scripts": {
     "pi": "pi",
     "agent": "bash scripts/run_agent.sh",
-    "test": "tsx --test test/ledger.test.ts test/ingestion.test.ts test/receipt_ocr.test.ts test/categorization.test.ts test/reporting.test.ts"
+    "test": "tsx --test test/ledger.test.ts test/ingestion.test.ts test/receipt_ocr.test.ts test/categorization.test.ts test/reporting.test.ts test/policy_yaml.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",
