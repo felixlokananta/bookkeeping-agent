@@ -44,6 +44,24 @@ function formatIsoDateUtc(ts: number): string {
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
+ * Stoplist of common, low-signal banking tokens that shouldn't be used for fuzzy matching.
+ * These are too generic to meaningfully distinguish between different transactions.
+ */
+const FUZZY_MATCH_STOPLIST = new Set([
+  'payment',
+  'transfer',
+  'purchase',
+  'online',
+  'debit',
+  'card',
+  'pos',
+  'pmt',
+  'txn',
+  'ach',
+  'deposit',
+]);
+
+/**
  * Normalize a description for fuzzy comparison: lowercase, alphanumeric only.
  */
 function normalizeDescription(desc: string | null | undefined): string {
@@ -52,7 +70,7 @@ function normalizeDescription(desc: string | null | undefined): string {
 
 /**
  * Fuzzy-match two normalized descriptions: match if one contains the other,
- * or they share a token of length >= 4.
+ * or they share a token of length >= 4 (excluding stoplist tokens).
  */
 function fuzzyMatch(a: string | null | undefined, b: string | null | undefined): boolean {
   const normA = normalizeDescription(a);
@@ -63,8 +81,14 @@ function fuzzyMatch(a: string | null | undefined, b: string | null | undefined):
   const compactB = normB.replace(/ /g, '');
   if (compactA.includes(compactB) || compactB.includes(compactA)) return true;
 
-  const tokensA = new Set(normA.split(' ').filter((t) => t.length >= 4));
-  const tokensB = normB.split(' ').filter((t) => t.length >= 4);
+  const tokensA = new Set(
+    normA
+      .split(' ')
+      .filter((t) => t.length >= 4 && !FUZZY_MATCH_STOPLIST.has(t))
+  );
+  const tokensB = normB
+    .split(' ')
+    .filter((t) => t.length >= 4 && !FUZZY_MATCH_STOPLIST.has(t));
   for (const token of tokensB) {
     if (tokensA.has(token)) return true;
   }

@@ -232,6 +232,40 @@ describe('bank_sync ingestion', () => {
       });
       assert.strictEqual(matches.length, 0);
     });
+
+    it('does not flag as duplicate when only stoplist tokens overlap (PAYMENT TO ALICE vs PAYMENT TO BOB)', () => {
+      // Post "PAYMENT TO ALICE"
+      postIngestedEntry(ledger, {
+        date: '2024-06-01',
+        amountMinor: -10000,
+        account: 'Assets:Checking',
+        description: 'PAYMENT TO ALICE',
+      });
+
+      // Try to find duplicates for "PAYMENT TO BOB" at same date/amount
+      // Should NOT match: "payment" is a stoplist token, "to" is below the length>=4
+      // threshold, and "alice" != "bob"
+      const matches = findLikelyDuplicates(ledger, {
+        account: 'Assets:Checking',
+        amountMinor: -10000,
+        date: '2024-06-01',
+        description: 'PAYMENT TO BOB',
+      });
+      assert.strictEqual(matches.length, 0);
+    });
+
+    it('still flags a fuzzy match when a stoplist token is present alongside a genuine signal token', () => {
+      // "purchase" is a stoplist token and gets filtered out, but "trader" (>= 4 chars)
+      // still overlaps with the original "Trader Joe's #123" description, so this
+      // should still be flagged.
+      const matches = findLikelyDuplicates(ledger, {
+        account: 'Assets:Checking',
+        amountMinor: -5520,
+        date: '2024-06-01',
+        description: 'TRADER JOES PURCHASE SEATTLE',
+      });
+      assert.strictEqual(matches.length, 1);
+    });
   });
 
   describe('csv.ts: parsing and column detection', () => {
