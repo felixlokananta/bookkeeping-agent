@@ -173,3 +173,12 @@ of them post, mutate, or touch the ledger — they only read.
   constrained inside `data/exports/` — paths escaping that directory are rejected).
 
 All four report over already-posted transactions and never invoke any of the write-path rules above.
+
+## Tools (Issue #22 — Reconciliation)
+
+The `reconciliation` extension adds two tools for bank reconciliation and ledger integrity verification. Both are read-mostly (preview first, optionally persist on confirmation).
+
+- **`reconcile_account`** — Reconcile a ledger account against a bank statement (balance-only or CSV export). Matches statement lines to ledger splits using tiered matching (Tier 1: exact amount + date within `windowDays`; Tier 2: exact amount + fuzzy description), computes balance discrepancy, and surfaces matched/ledger-only/statement-only entries. Reconciliation runs and split-reconciliation links are only persisted when called with `markReconciled: true`, allowing a preview call first. A matched transaction with a non-null `source_path` (posted via receipt capture in issue #3) is annotated with `sourcedFromReceipt: true` and the receipt path for provenance.
+- **`verify_ledger`** — Run period-end integrity checks: detect unbalanced transactions (splits not summing to zero), orphan splits (referencing non-existent transactions/accounts), compute and verify trial balance, and flag accounts with unexpected-sign balances (e.g., negative balance in a debit-normal asset account). All checks are read-only and optional-date-cutoff capable.
+
+Both tools are read-only and never post new transactions or modify the ledger beyond optional reconciliation run persistence (split `account_id` is never touched by reconciliation, unlike categorization).

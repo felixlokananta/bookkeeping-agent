@@ -99,6 +99,30 @@ BEGIN
   SELECT RAISE(ABORT, 'splits are append-only except account_id: UPDATE of this column not allowed');
 END;
 
+-- Reconciliation runs (one row per account reconciliation session)
+CREATE TABLE IF NOT EXISTS reconciliation_runs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id INTEGER NOT NULL REFERENCES accounts(id),
+  period_start TEXT NOT NULL CHECK (period_start GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  period_end TEXT NOT NULL CHECK (period_end GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  statement_balance_minor INTEGER NOT NULL,
+  source_path TEXT,
+  created_at INTEGER NOT NULL
+);
+
+-- Reconciliations (links splits to the reconciliation run that confirmed them)
+CREATE TABLE IF NOT EXISTS reconciliations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL REFERENCES reconciliation_runs(id),
+  split_id INTEGER NOT NULL REFERENCES splits(id),
+  created_at INTEGER NOT NULL
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_reconciliation_runs_account ON reconciliation_runs(account_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliations_run ON reconciliations(run_id);
+CREATE INDEX IF NOT EXISTS idx_reconciliations_split ON reconciliations(split_id);
+
 -- Pragmas (set per connection)
 PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;

@@ -1,0 +1,7 @@
+{
+  "name": "reconciliation",
+  "type": "module",
+  "pi": {
+    "extensions": ["./index.ts"]
+  }
+}
