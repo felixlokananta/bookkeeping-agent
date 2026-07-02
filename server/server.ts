@@ -32,6 +32,14 @@ export function createApp() {
       return;
     }
 
+    // Check if already streaming before paying the cost of attachment
+    // processing (PDF rasterization in particular is not cheap) — a request
+    // that's going to be rejected with 409 shouldn't rasterize PDFs first.
+    if (getIsStreaming()) {
+      res.status(409).json({ error: "Session is already processing" });
+      return;
+    }
+
     let images: { type: "image"; data: string; mimeType: string }[] = [];
     if (rawAttachments.length > 0) {
       try {
@@ -46,12 +54,6 @@ export function createApp() {
     }
 
     const effectiveMessage = hasText ? (message as string) : "Process the attached file(s).";
-
-    // Check if already streaming
-    if (getIsStreaming()) {
-      res.status(409).json({ error: "Session is already processing" });
-      return;
-    }
 
     // Set SSE headers
     res.setHeader("Content-Type", "text/event-stream");
@@ -127,6 +129,27 @@ export function createApp() {
       }
     }
   });
+
+  // Body-parser failures (e.g. a request body over the express.json() limit)
+  // call next(err) before any route handler runs, bypassing the JSON error
+  // contract every route in this app otherwise guarantees. Catch them here
+  // so oversized uploads get a clean {error} JSON response instead of
+  // Express's default HTML error page (which also leaks internal file paths
+  // via the stack trace).
+  app.use(
+    (
+      err: any,
+      _req: express.Request,
+      res: express.Response,
+      next: express.NextFunction
+    ) => {
+      if (err && err.type === "entity.too.large") {
+        res.status(413).json({ error: "Request body too large" });
+        return;
+      }
+      next(err);
+    }
+  );
 
   return app;
 }

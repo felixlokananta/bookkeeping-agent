@@ -1,4 +1,5 @@
 import { pdf } from 'pdf-to-img';
+import { resizeImage } from '@earendil-works/pi-coding-agent';
 import {
   getMaxUploadBytes,
   getMaxAttachments,
@@ -19,6 +20,20 @@ export interface ProcessedImage {
   type: 'image';
   data: string;
   mimeType: string;
+}
+
+// Mirrors .pi/extensions/receipt_ocr/capture.ts's post-load resizeImage step:
+// AgentSession.prompt() forwards image content parts to the model API as-is
+// (no resizing of its own), so an uploaded photo or a rasterized PDF page
+// left at full size risks being rejected or degraded by provider-side image
+// limits. Falls back to the original bytes, base64-encoded, if Photon isn't
+// available (resizeImage returns null) — same fallback capture.ts relies on.
+async function toResizedImage(buffer: Buffer, mimeType: string): Promise<ProcessedImage> {
+  const resized = await resizeImage(buffer, mimeType);
+  if (resized === null) {
+    return { type: 'image', data: buffer.toString('base64'), mimeType };
+  }
+  return { type: 'image', data: resized.data, mimeType: resized.mimeType };
 }
 
 // Mirrors .pi/extensions/receipt_ocr/capture.ts's rasterizePdf, extended to
@@ -80,10 +95,10 @@ export async function processAttachments(attachments: Attachment[]): Promise<Pro
     if (att.mimeType === 'application/pdf') {
       const pages = await rasterizePdfPages(raw, maxPdfPages);
       for (const pageBuffer of pages) {
-        images.push({ type: 'image', data: pageBuffer.toString('base64'), mimeType: 'image/png' });
+        images.push(await toResizedImage(pageBuffer, 'image/png'));
       }
     } else {
-      images.push({ type: 'image', data: att.data, mimeType: att.mimeType });
+      images.push(await toResizedImage(raw, att.mimeType));
     }
 
     if (images.length > maxImages) {

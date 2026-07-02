@@ -34,37 +34,37 @@ export default function App() {
 
   const addFiles = (files: FileList | File[]) => {
     const fileArray = Array.from(files);
-    let hasError = false;
 
     for (const file of fileArray) {
       if (!SUPPORTED_MIME_TYPES.has(file.type)) {
         setError(`Unsupported file type "${file.type}" for "${file.name}". Supported: PNG, JPG, GIF, WebP, PDF.`);
-        hasError = true;
-        break;
+        return;
       }
       if (file.size > MAX_UPLOAD_BYTES) {
         setError(
           `"${file.name}" is too large (${Math.ceil(file.size / 1024 / 1024)}MB, max ${Math.ceil(MAX_UPLOAD_BYTES / 1024 / 1024)}MB)`
         );
-        hasError = true;
-        break;
+        return;
       }
     }
 
-    if (hasError) return;
+    // Computed from the closure value (safe here — addFiles only ever runs
+    // from a discrete user event, never during render), not a functional
+    // setState updater, so setError can be called plainly instead of as a
+    // side effect inside the updater callback.
+    const availableSlots = MAX_ATTACHMENTS - pendingAttachments.length;
+    if (availableSlots <= 0 || fileArray.length > availableSlots) {
+      setError(`Too many attachments: max ${MAX_ATTACHMENTS} per message`);
+    }
+    if (availableSlots <= 0) return;
 
-    setPendingAttachments((prev) => {
-      const updated = [...prev];
-      for (const file of fileArray) {
-        if (updated.length >= MAX_ATTACHMENTS) {
-          setError(`Too many attachments: max ${MAX_ATTACHMENTS} per message`);
-          break;
-        }
-        const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : "";
-        updated.push({ id: Math.random().toString(36), file, previewUrl });
-      }
-      return updated;
-    });
+    const accepted = fileArray.slice(0, availableSlots).map((file) => ({
+      id: Math.random().toString(36),
+      file,
+      previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : "",
+    }));
+
+    setPendingAttachments((prev) => [...prev, ...accepted]);
   };
 
   const removeAttachment = (id: string) => {

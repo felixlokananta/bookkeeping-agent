@@ -238,6 +238,56 @@ describe("web_server", () => {
         }
       }
     });
+
+    it("with a request body over the express.json() limit returns 413 as JSON, not HTML", async () => {
+      // express.json()'s limit is derived from BOOKKEEPING_MAX_UPLOAD_BYTES *
+      // BOOKKEEPING_MAX_ATTACHMENTS * 2. Shrinking both to tiny values makes
+      // an ordinary-sized body exceed the limit without allocating a huge
+      // string in the test itself.
+      const originalBytes = process.env.BOOKKEEPING_MAX_UPLOAD_BYTES;
+      const originalAttachments = process.env.BOOKKEEPING_MAX_ATTACHMENTS;
+      process.env.BOOKKEEPING_MAX_UPLOAD_BYTES = "10";
+      process.env.BOOKKEEPING_MAX_ATTACHMENTS = "1";
+
+      try {
+        // A fresh app picks up the shrunken limit (createApp() reads it at
+        // construction time); the shared `port` server was built with the
+        // default limit, so build a throwaway app/server for this case.
+        const { createApp } = await import("../server/server.js");
+        const oversizedApp = createApp();
+        const oversizedServer = oversizedApp.listen(0);
+        const oversizedPort = (oversizedServer.address() as any).port;
+
+        try {
+          const response = await fetch(`http://localhost:${oversizedPort}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: "x",
+              attachments: [{ filename: "big.png", mimeType: "image/png", data: "A".repeat(1000) }],
+            }),
+          });
+
+          assert.strictEqual(response.status, 413);
+          assert.match(response.headers.get("content-type") ?? "", /application\/json/);
+          const data = await response.json();
+          assert.ok(data.error);
+        } finally {
+          oversizedServer.close();
+        }
+      } finally {
+        if (originalBytes === undefined) {
+          delete process.env.BOOKKEEPING_MAX_UPLOAD_BYTES;
+        } else {
+          process.env.BOOKKEEPING_MAX_UPLOAD_BYTES = originalBytes;
+        }
+        if (originalAttachments === undefined) {
+          delete process.env.BOOKKEEPING_MAX_ATTACHMENTS;
+        } else {
+          process.env.BOOKKEEPING_MAX_ATTACHMENTS = originalAttachments;
+        }
+      }
+    });
   });
 
   it("POST /chat with empty message and no attachments still returns 400 (confirm backward compatibility)", async () => {
