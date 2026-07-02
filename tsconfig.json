@@ -11,5 +11,5 @@
     "noEmit": true,
     "allowImportingTsExtensions": true
   },
-  "include": ["test/**/*.ts", ".pi/extensions/**/*.ts"]
+  "include": ["test/**/*.ts", "server/**/*.ts", ".pi/extensions/**/*.ts"]
 }

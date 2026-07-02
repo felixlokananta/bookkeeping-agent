@@ -5,6 +5,8 @@ data/*.db
 
 # Node modules
 node_modules/
+web/node_modules/
+web/dist/
 
 # Session logs (keep the directory)
 memory/session_logs/*
