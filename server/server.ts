@@ -7,6 +7,8 @@ import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { processAttachments, AttachmentError, type Attachment } from "./attachments.js";
 import { getMaxUploadBytes, getMaxAttachments } from "./uploadConfig.js";
 import { detectAutoPostBlock } from "./approvalDetection.js";
+import { authMiddleware, getAuthToken } from "./auth.js";
+import { getBindHost, assertSafeBindConfig } from "./network.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const cwd = path.dirname(__dirname);
@@ -17,7 +19,7 @@ export function createApp() {
   app.use(express.json({ limit: getMaxUploadBytes() * getMaxAttachments() * 2 }));
   app.use(express.static(path.join(cwd, "web/dist")));
 
-  app.post("/chat", async (req, res) => {
+  app.post("/chat", authMiddleware, async (req, res) => {
     const { message, attachments } = req.body;
 
     // Validate message and attachments
@@ -177,8 +179,10 @@ export function createApp() {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const app = createApp();
-  const port = process.env.PORT ?? 3000;
-  app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+  const port = parseInt(process.env.PORT ?? "3000", 10);
+  const host = getBindHost();
+  assertSafeBindConfig(host, getAuthToken());
+  app.listen(port, host, () => {
+    console.log(`Server running at http://${host}:${port}`);
   });
 }

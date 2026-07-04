@@ -1,4 +1,4 @@
-import { describe, it, before, after } from "node:test";
+import { describe, it, before, after, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -161,6 +161,55 @@ describe("web_server", () => {
     ];
     const hasLedgerTool = commonTools.some((tool) => activeToolNames.includes(tool));
     assert.ok(hasLedgerTool, `Should have at least one ledger tool. Available: ${activeToolNames.join(", ")}`);
+  });
+
+  describe("POST /chat auth", () => {
+    afterEach(() => {
+      delete process.env.BOOKKEEPING_AUTH_TOKEN;
+    });
+
+    it("rejects requests with no Authorization header when BOOKKEEPING_AUTH_TOKEN is set", async () => {
+      process.env.BOOKKEEPING_AUTH_TOKEN = "secret123";
+      const response = await fetch(`http://localhost:${port}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Hello" }),
+      });
+      assert.strictEqual(response.status, 401);
+      const data = await response.json();
+      assert.deepStrictEqual(data, { error: "Unauthorized" });
+    });
+
+    it("rejects requests with an incorrect token", async () => {
+      process.env.BOOKKEEPING_AUTH_TOKEN = "secret123";
+      const response = await fetch(`http://localhost:${port}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer wrong" },
+        body: JSON.stringify({ message: "Hello" }),
+      });
+      assert.strictEqual(response.status, 401);
+    });
+
+    it("accepts requests with the correct token", async () => {
+      process.env.BOOKKEEPING_AUTH_TOKEN = "secret123";
+      setIsStreaming(false);
+      const response = await fetch(`http://localhost:${port}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer secret123" },
+        body: JSON.stringify({ message: "Hello" }),
+      });
+      assert.strictEqual(response.status, 200);
+    });
+
+    it("allows requests with no Authorization header when BOOKKEEPING_AUTH_TOKEN is unset", async () => {
+      setIsStreaming(false);
+      const response = await fetch(`http://localhost:${port}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Hello" }),
+      });
+      assert.strictEqual(response.status, 200);
+    });
   });
 
   describe("POST /chat with attachments", () => {
