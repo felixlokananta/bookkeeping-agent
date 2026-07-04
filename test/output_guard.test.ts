@@ -29,6 +29,29 @@ describe("scanAssistantOutput", () => {
     assert.deepStrictEqual(result, { flagged: false, matchedPatterns: [] });
   });
 
+  it("does not flag tax_year_export's confirmation text (absolute path under data/exports/)", () => {
+    // Mirrors the exact shape of the text built in
+    // .pi/extensions/reporting/index.ts: `Exported ${n} transaction(s) for
+    // tax year ${year} to ${outputPath}`, where outputPath resolves under
+    // process.cwd()/data/exports/ and is therefore an in-scope, tool-reported
+    // path rather than a disclosure of pi's own working directory.
+    const outputPath = join(process.cwd(), "data", "exports", "tax-export-2024.csv");
+    const result = scanAssistantOutput(
+      `Exported 12 transaction(s) for tax year 2024 to ${outputPath}`
+    );
+    assert.deepStrictEqual(result, { flagged: false, matchedPatterns: [] });
+  });
+
+  it("does not flag common English sentences that merely mention .env", () => {
+    const result = scanAssistantOutput("Let me know if you want more info about .env files.");
+    assert.deepStrictEqual(result, { flagged: false, matchedPatterns: [] });
+  });
+
+  it('does not flag "what type of file is .env"', () => {
+    const result = scanAssistantOutput("What type of file is .env, anyway?");
+    assert.deepStrictEqual(result, { flagged: false, matchedPatterns: [] });
+  });
+
   it("flags an absolute /Users/ home directory path", () => {
     const result = scanAssistantOutput(
       "I'm operating from /Users/felixlokananta/PycharmProjects/bookkeeping-agent."
@@ -152,5 +175,15 @@ describe("logBoundaryDisclosure", () => {
     assert.strictEqual(log.length, 2);
     assert.strictEqual(log[0].detail, "first");
     assert.strictEqual(log[1].detail, "second");
+  });
+
+  it("never throws, even when the log path is unwritable (best-effort audit log)", () => {
+    // Point at a path whose parent directory doesn't exist, so writeFileSync
+    // fails — this must not propagate, since it runs inside a
+    // session.subscribe() listener with no surrounding try/catch, and a
+    // throw there would surface as a spurious chat error for an already
+    // successfully streamed response.
+    process.env.BOOKKEEPING_ANOMALY_LOG_PATH = join(tmpDir, "no-such-dir", "anomaly_log.json");
+    assert.doesNotThrow(() => logBoundaryDisclosure("should not throw"));
   });
 });
