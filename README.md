@@ -598,6 +598,14 @@ parameter (e.g. share `http://host:3000/?token=<token>` with yourself once),
 stores it in `localStorage`, and strips it from the URL bar. Subsequent
 requests from that browser attach it automatically.
 
+**Residual risk:** stripping the token from the address bar only prevents it
+from lingering in browser history — the *initial* request that loads the page
+still carries the token in its URL over the network before that JS runs. Any
+reverse proxy, CDN, or intermediary in front of this server that logs request
+URLs (a common default, e.g. nginx/ALB access logs) will capture it there.
+Only share the one-time link over a channel/proxy you control, and only over
+TLS.
+
 ### Network binding
 
 The server binds to `127.0.0.1` by default. Set

@@ -180,6 +180,9 @@ export function createApp() {
 if (import.meta.url === `file://${process.argv[1]}`) {
   const app = createApp();
   const port = parseInt(process.env.PORT ?? "3000", 10);
+  if (!Number.isFinite(port) || port < 0) {
+    throw new Error(`PORT must be a non-negative integer, got: ${process.env.PORT}`);
+  }
   const host = getBindHost();
   assertSafeBindConfig(host, getAuthToken());
   app.listen(port, host, () => {

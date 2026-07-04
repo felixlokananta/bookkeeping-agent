@@ -24,7 +24,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction):
   }
 
   const header = req.get("authorization") ?? "";
-  const provided = header.startsWith("Bearer ") ? header.slice(7) : "";
+  const provided = /^bearer /i.test(header) ? header.slice(7) : "";
   if (!provided || !tokensMatch(token, provided)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
