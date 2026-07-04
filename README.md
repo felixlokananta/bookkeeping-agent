@@ -581,6 +581,57 @@ outstanding (0–30/31–60/61–90/90+), computed from open invoices' issue dat
 show the AR aging report as of today
 ```
 
+## Web Chat Server (Issue #44)
+
+Start the web chat server with `npm run web` (builds `web/` then runs `server/server.ts`).
+
+### Authentication
+
+Set `BOOKKEEPING_AUTH_TOKEN` to require a shared-secret token on every
+`POST /chat` request. Requests without a matching `Authorization: Bearer
+<token>` header are rejected with `401 {"error": "Unauthorized"}`. If
+`BOOKKEEPING_AUTH_TOKEN` is unset, no auth is enforced — this matches the
+single trusted-operator-on-localhost default.
+
+The browser client picks up the token from a one-time `?token=<token>` query
+parameter (e.g. share `http://host:3000/?token=<token>` with yourself once),
+stores it in `localStorage`, and strips it from the URL bar. Subsequent
+requests from that browser attach it automatically.
+
+**Residual risk:** stripping the token from the address bar only prevents it
+from lingering in browser history — the *initial* request that loads the page
+still carries the token in its URL over the network before that JS runs. Any
+reverse proxy, CDN, or intermediary in front of this server that logs request
+URLs (a common default, e.g. nginx/ALB access logs) will capture it there.
+Only share the one-time link over a channel/proxy you control, and only over
+TLS.
+
+### Network binding
+
+The server binds to `127.0.0.1` by default. Set
+`BOOKKEEPING_ALLOW_EXTERNAL_BIND=true` to bind to all interfaces (`0.0.0.0`)
+instead. The server refuses to start with external binding enabled unless
+`BOOKKEEPING_AUTH_TOKEN` is also set — this is a hard requirement, not just a
+recommendation, since an unauthenticated agent reachable off localhost can
+read and write the ledger for anyone who can reach the port.
+
+### Tenancy model
+
+The server holds a single shared `AgentSession` for the whole process (see
+`server/chatSession.ts`). This is a deliberate single-operator design: the
+auth token grants access to the one shared session, not a per-user session.
+Overlapping concurrent requests are rejected with `409` (the existing
+`isStreaming` guard) rather than silently interleaving; there is no per-client
+session isolation. Full multi-tenant user accounts are out of scope (see
+issue #44).
+
+### Logging
+
+Server-side logging is limited to the startup banner and extension-bind
+errors (`server/chatSession.ts`); no per-request transaction, vendor, or
+amount detail is written to server logs. Error responses returned to clients
+(400/401/409/413) contain only generic messages, never ledger content.
+
 ## Unit Tests
 
 Run the comprehensive test suite:

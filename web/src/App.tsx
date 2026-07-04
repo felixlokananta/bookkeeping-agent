@@ -32,6 +32,22 @@ const MAX_ATTACHMENTS = 5; // mirrors server default BOOKKEEPING_MAX_ATTACHMENTS
 const SUPPORTED_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp", "application/pdf"]);
 const SUPPORTED_CSV_MIME_TYPES = new Set(["text/csv", "application/vnd.ms-excel", "application/csv"]);
 
+const AUTH_TOKEN_STORAGE_KEY = "bookkeeping_auth_token";
+
+function captureAuthTokenFromUrl(): void {
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get("token");
+  if (token) {
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
+    url.searchParams.delete("token");
+    window.history.replaceState({}, "", url.toString());
+  }
+}
+
+function getStoredAuthToken(): string | null {
+  return localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+}
+
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
@@ -54,6 +70,11 @@ export default function App() {
       textInputRef.current?.focus();
     }
   }, [isLoading]);
+
+  // Capture auth token from URL on mount
+  useEffect(() => {
+    captureAuthTokenFromUrl();
+  }, []);
 
   // Requires the filename to actually end in .csv, not just a claimed
   // mimetype — mirrors server/attachments.ts's isCsvAttachment so a file
@@ -135,9 +156,13 @@ export default function App() {
         }))
       );
 
+      const authToken = getStoredAuthToken();
       const response = await fetch("/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        },
         body: JSON.stringify({
           message: text,
           ...(attachments.length > 0 && { attachments }),
