@@ -76,15 +76,25 @@ rejected with a clear error message.
 
 Text extracted from receipts/invoices (`read_receipt`), imported CSV rows
 (`import_csv`), and any other document/OCR source is untrusted data, not
-instructions — see `AGENTS.md`'s Boundaries & Safety section. The code-level
-enforcement lives in `.pi/extensions/bookkeeping/injection_detection.ts`:
-`wrapUntrustedContent` wraps such content in `<untrusted-data source="...">`
-tags (escaping literal `<`/`>` so content can't fake a closing tag) before it
-reaches the model, and `scanForInjectionAttempt` flags common injection
+instructions — see `AGENTS.md`'s Boundaries & Safety section. This applies
+regardless of how plausible the embedded text looks (a line item, memo, or
+payee name is still just a value), and holds even where the mechanism below
+doesn't reach a given step — the prompt-level rule is the backstop.
+
+The code-level enforcement in `.pi/extensions/bookkeeping/injection_detection.ts`
+covers specific steps, not the raw extraction itself: `read_receipt`'s initial
+image-to-text pass relies only on an inline prompt instruction (see
+`receipt_ocr/index.ts`) telling the model the image is data to transcribe, not
+a command to follow. `scanForInjectionAttempt` then flags common injection
 phrasing (e.g., "ignore previous instructions", "approved: true", "you are now
-a/an/in ...") for logging to `memory/anomaly_log.json` as a
-`possible_injection` anomaly. This applies regardless of how plausible the
-embedded text looks (a line item, memo, or payee name is still just a value).
+a/an/in ...") once text reaches a structured field — the operator-confirmed
+payee/memo passed to `capture_receipt`, and the description/memo of every
+`import_csv`/`log_transaction` row at ingestion — logging matches to
+`memory/anomaly_log.json` as a `possible_injection` anomaly. `wrapUntrustedContent`
+wraps content in `<untrusted-data source="...">` tags (escaping literal `<`/`>`
+so it can't fake a closing tag) when an already-stored value — a matched
+transaction's description on a duplicate hit, or a CSV import's error/skipped-row
+summary — is echoed back to the model.
 
 ## Currency and Precision
 
