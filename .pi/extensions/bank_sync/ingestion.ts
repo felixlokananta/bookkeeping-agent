@@ -19,6 +19,8 @@ import {
   type Account,
   type Ledger,
 } from '../bookkeeping/ledger.ts';
+import { scanForInjectionAttempt } from '../bookkeeping/injection_detection.ts';
+import { logAnomaly } from '../bookkeeping/policy.ts';
 import { findLikelyDuplicates, type DuplicateMatch } from './dedupe.ts';
 import { parseDate, parseAmountCents, type ColumnMap } from './csv.ts';
 import { matchRule, loadRules, type Rules } from '../categorization/rules.ts';
@@ -110,6 +112,7 @@ export interface PostIngestedEntryOptions {
   approved?: boolean;
   windowDays?: number;
   rules?: Rules;
+  sourceLabel?: string;
 }
 
 export type PostIngestedEntryResult =
@@ -136,7 +139,18 @@ export function postIngestedEntry(
   ledger: Ledger,
   opts: PostIngestedEntryOptions
 ): PostIngestedEntryResult {
-  const { date, amountMinor, account, description, memo, force, approved, windowDays, rules: rulesParam } = opts;
+  const { date, amountMinor, account, description, memo, force, approved, windowDays, rules: rulesParam, sourceLabel } = opts;
+
+  // Scan for injection attempts
+  const combinedForScan = [description, memo].filter(Boolean).join(' ');
+  const scan = scanForInjectionAttempt(combinedForScan);
+  if (scan.flagged) {
+    logAnomaly({
+      kind: 'possible_injection',
+      detail: `Possible prompt-injection phrase(s) [${scan.matchedPatterns.join(', ')}] in ingested ` +
+        `description/memo from ${sourceLabel ?? 'manual entry'}: ${combinedForScan}`,
+    });
+  }
 
   if (!force) {
     const duplicates = findLikelyDuplicates(ledger, {
@@ -186,6 +200,7 @@ export interface ImportCsvRowsOptions {
   windowDays?: number;
   forceDuplicates?: boolean;
   approved?: boolean;
+  sourceLabel?: string;
 }
 
 export interface ImportCsvRowsResult {
@@ -212,7 +227,7 @@ export function importCsvRows(
   cols: ColumnMap,
   opts: ImportCsvRowsOptions
 ): ImportCsvRowsResult {
-  const { account, windowDays, forceDuplicates, approved } = opts;
+  const { account, windowDays, forceDuplicates, approved, sourceLabel } = opts;
 
   // Load rules once per import call, not per row
   const rules = loadRules();
@@ -230,6 +245,15 @@ export function importCsvRows(
       date = parseDate(row[cols.dateCol] ?? '');
       amountMinor = parseAmountCents(row, cols);
     } catch (err: any) {
+      // Scan for injection attempts in the error message
+      const scan = scanForInjectionAttempt(err.message);
+      if (scan.flagged) {
+        logAnomaly({
+          kind: 'possible_injection',
+          detail: `Possible prompt-injection phrase(s) [${scan.matchedPatterns.join(', ')}] in parse error ` +
+            `from ${sourceLabel ?? 'manual entry'} row ${rowNum}: ${err.message}`,
+        });
+      }
       errors.push({ row: rowNum, reason: err.message });
       return;
     }
@@ -248,6 +272,7 @@ export function importCsvRows(
         approved: approved ?? false,
         windowDays,
         rules,
+        sourceLabel,
       });
 
       if ('duplicate' in result) {

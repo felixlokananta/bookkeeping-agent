@@ -13,6 +13,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { openLedger, closeLedger, type Ledger } from '../bookkeeping/ledger.ts';
 import { toMinor } from '../bookkeeping/money.ts';
+import { wrapUntrustedContent } from '../bookkeeping/injection_detection.ts';
 import { postIngestedEntry, importCsvRows } from './ingestion.ts';
 import { parseCsvText, detectColumns, type ColumnOverrides } from './csv.ts';
 
@@ -92,10 +93,13 @@ export default function (pi: ExtensionAPI) {
 
       if ('duplicate' in result) {
         const dup = result.duplicate;
+        const descriptionBlock = wrapUntrustedContent(
+          `existing transaction ${dup.transactionId} description`,
+          dup.description ?? '(no description)'
+        );
         throw new Error(
-          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}, ` +
-            `${dup.description ?? '(no description)'}). Re-call with force: true if the user ` +
-            `confirms this is not a duplicate.`
+          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}):\n` +
+            `${descriptionBlock}\nRe-call with force: true if the user confirms this is not a duplicate.`
         );
       }
 
@@ -183,6 +187,7 @@ export default function (pi: ExtensionAPI) {
         windowDays: params.date_window_days,
         forceDuplicates: params.force_duplicates ?? false,
         approved: params.approved ?? false,
+        sourceLabel: params.path,
       });
 
       const text_summary =
@@ -195,22 +200,16 @@ export default function (pi: ExtensionAPI) {
       // spelled out here too, or the model has no way to tell "Account not
       // found: Assets:Checking" apart from a real file/format problem and
       // ends up guessing (and hallucinating a wrong diagnosis for the user).
-      const errorDetail =
-        errors.length > 0
-          ? '\n\nErrors:\n' + errors.map((e) => `  Row ${e.row}: ${e.reason}`).join('\n')
-          : '';
-      const duplicateDetail =
-        skippedDuplicates.length > 0
-          ? '\n\nSkipped likely duplicates:\n' +
-            skippedDuplicates
-              .map(
-                (d) =>
-                  `  Row ${d.row}: matches existing transaction ${d.transactionId} (${d.date}, ${
-                    d.description ?? '(no description)'
-                  })`
-              )
-              .join('\n')
-          : '';
+      const errorDetail = errors.length > 0
+        ? '\n\n' + wrapUntrustedContent(`${params.path} (errors)`,
+            'Errors:\n' + errors.map((e) => `  Row ${e.row}: ${e.reason}`).join('\n'))
+        : '';
+      const duplicateDetail = skippedDuplicates.length > 0
+        ? '\n\n' + wrapUntrustedContent(`${params.path} (skipped duplicates)`,
+            'Skipped likely duplicates:\n' + skippedDuplicates.map((d) =>
+              `  Row ${d.row}: matches existing transaction ${d.transactionId} (${d.date}, ${d.description ?? '(no description)'})`
+            ).join('\n'))
+        : '';
 
       return {
         content: [{ type: 'text', text: text_summary + errorDetail + duplicateDetail }],

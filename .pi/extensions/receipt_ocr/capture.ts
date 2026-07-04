@@ -10,6 +10,8 @@ import { resolve, extname } from 'path';
 import { resizeImage } from '@earendil-works/pi-coding-agent';
 import { pdf } from 'pdf-to-img';
 import { postTransaction, type Ledger } from '../bookkeeping/ledger.ts';
+import { scanForInjectionAttempt } from '../bookkeeping/injection_detection.ts';
+import { logAnomaly } from '../bookkeeping/policy.ts';
 import { ensureUncategorizedAccount, type UncategorizedKind } from '../bank_sync/ingestion.ts';
 import { findLikelyDuplicates, type DuplicateMatch } from '../bank_sync/dedupe.ts';
 
@@ -181,6 +183,17 @@ export function postReceiptEntry(
     approved,
     windowDays,
   } = opts;
+
+  // Scan for injection attempts
+  const combinedForScan = [payee, memo].filter(Boolean).join(' ');
+  const scan = scanForInjectionAttempt(combinedForScan);
+  if (scan.flagged) {
+    logAnomaly({
+      kind: 'possible_injection',
+      detail: `Possible prompt-injection phrase(s) [${scan.matchedPatterns.join(', ')}] in receipt ` +
+        `payee/memo from ${sourcePath}: ${combinedForScan}`,
+    });
+  }
 
   // Confidence gate: block low-confidence posts unless forced
   if (confidence === 'low' && !force) {
