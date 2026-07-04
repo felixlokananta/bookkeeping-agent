@@ -10,6 +10,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { Type } from 'typebox';
 import { openLedger, closeLedger, type Ledger } from '../bookkeeping/ledger.ts';
 import { toMinor, toMajor } from '../bookkeeping/money.ts';
+import { wrapUntrustedContent } from '../bookkeeping/injection_detection.ts';
 import { loadReceiptImage, postReceiptEntry } from './capture.ts';
 
 let ledger: Ledger | null = null;
@@ -193,10 +194,13 @@ export default function (pi: ExtensionAPI) {
       // Duplicate block: throw with instructions
       if ('duplicate' in result) {
         const dup = result.duplicate;
+        const descriptionBlock = wrapUntrustedContent(
+          `existing transaction ${dup.transactionId} description`,
+          dup.description ?? '(no description)'
+        );
         throw new Error(
-          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}, ` +
-            `${dup.description ?? '(no description)'}). Re-call with force_duplicate: true if the user ` +
-            `confirms this is not a duplicate.`
+          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}):\n` +
+            `${descriptionBlock}\nRe-call with force_duplicate: true if the user confirms this is not a duplicate.`
         );
       }
 

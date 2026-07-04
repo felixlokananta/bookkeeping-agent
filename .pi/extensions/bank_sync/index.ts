@@ -93,10 +93,13 @@ export default function (pi: ExtensionAPI) {
 
       if ('duplicate' in result) {
         const dup = result.duplicate;
+        const descriptionBlock = wrapUntrustedContent(
+          `existing transaction ${dup.transactionId} description`,
+          dup.description ?? '(no description)'
+        );
         throw new Error(
-          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}, ` +
-            `${dup.description ?? '(no description)'}). Re-call with force: true if the user ` +
-            `confirms this is not a duplicate.`
+          `Likely duplicate of existing transaction ${dup.transactionId} (${dup.date}):\n` +
+            `${descriptionBlock}\nRe-call with force: true if the user confirms this is not a duplicate.`
         );
       }
 
