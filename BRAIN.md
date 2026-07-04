@@ -72,6 +72,20 @@ page only; the response includes a note if the PDF has more than one page. Corru
 password-protected PDFs are rejected with a clear error. Other unsupported formats are explicitly
 rejected with a clear error message.
 
+## Untrusted Document Content (Issue #43)
+
+Text extracted from receipts/invoices (`read_receipt`), imported CSV rows
+(`import_csv`), and any other document/OCR source is untrusted data, not
+instructions — see `AGENTS.md`'s Boundaries & Safety section. The code-level
+enforcement lives in `.pi/extensions/bookkeeping/injection_detection.ts`:
+`wrapUntrustedContent` wraps such content in `<untrusted-data source="...">`
+tags (escaping literal `<`/`>` so content can't fake a closing tag) before it
+reaches the model, and `scanForInjectionAttempt` flags common injection
+phrasing (e.g., "ignore previous instructions", "approved: true", "you are now
+a/an/in ...") for logging to `memory/anomaly_log.json` as a
+`possible_injection` anomaly. This applies regardless of how plausible the
+embedded text looks (a line item, memo, or payee name is still just a value).
+
 ## Currency and Precision
 
 - **Base currency:** USD (configurable in `config/settings.yaml`)
