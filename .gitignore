@@ -19,6 +19,11 @@ web/vite.config.d.ts
 memory/session_logs/*
 !memory/session_logs/.gitkeep
 
+# Learned/runtime memory state — real data from interactive use, not fixtures.
+# Code falls back to {}/[] when these are missing (policy.ts, rules.ts).
+memory/anomaly_log.json
+memory/vendor_rules.json
+
 # IDE
 .idea/
 .vscode/
