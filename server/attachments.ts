@@ -1,7 +1,7 @@
 import { pdf } from 'pdf-to-img';
 import { resizeImage } from '@earendil-works/pi-coding-agent';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import {
   getMaxUploadBytes,
@@ -111,8 +111,7 @@ export async function processAttachments(attachments: Attachment[]): Promise<{ i
       try {
         const dir = getInboxDir();
         mkdirSync(dir, { recursive: true });
-        const safeName = basename(att.filename).replace(/[^a-zA-Z0-9._-]/g, '_');
-        const uniqueName = `${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`;
+        const uniqueName = `${Date.now()}-${randomBytes(8).toString('hex')}.csv`;
         const fullPath = join(dir, uniqueName);
         writeFileSync(fullPath, raw);
         csvPaths.push(fullPath);

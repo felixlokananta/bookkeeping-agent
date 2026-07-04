@@ -86,7 +86,7 @@ export function checkAutoPost(
  * Creates or repairs the file if needed.
  */
 export function logAnomaly(entry: {
-  kind: 'above_threshold' | 'imbalanced' | 'unknown_account';
+  kind: 'above_threshold' | 'imbalanced' | 'unknown_account' | 'possible_injection';
   detail: string;
   magnitudeMinor?: number;
   limitMinor?: number;
