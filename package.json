@@ -16,7 +16,7 @@
     "pi": "pi",
     "agent": "bash scripts/run_agent.sh",
     "web": "npm run build --prefix web && tsx server/server.ts",
-    "test": "tsx --test test/ledger.test.ts test/ingestion.test.ts test/receipt_ocr.test.ts test/categorization.test.ts test/reporting.test.ts test/policy_yaml.test.ts test/reconciliation.test.ts test/invoicing.test.ts test/web_server.test.ts test/server_security.test.ts test/attachments.test.ts test/approval_detection.test.ts test/injection_detection.test.ts test/tool_allowlist.test.ts"
+    "test": "tsx --test test/ledger.test.ts test/ingestion.test.ts test/receipt_ocr.test.ts test/categorization.test.ts test/reporting.test.ts test/policy_yaml.test.ts test/reconciliation.test.ts test/invoicing.test.ts test/web_server.test.ts test/server_security.test.ts test/attachments.test.ts test/approval_detection.test.ts test/injection_detection.test.ts test/tool_allowlist.test.ts test/output_guard.test.ts"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
