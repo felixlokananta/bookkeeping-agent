@@ -7,6 +7,7 @@ import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
 import { processAttachments, AttachmentError, type Attachment } from "./attachments.js";
 import { getMaxUploadBytes, getMaxAttachments } from "./uploadConfig.js";
 import { detectAutoPostBlock } from "./approvalDetection.js";
+import { scanAssistantOutput, extractAssistantText, logBoundaryDisclosure } from "./outputGuard.js";
 import { authMiddleware, getAuthToken } from "./auth.js";
 import { getBindHost, assertSafeBindConfig } from "./network.js";
 
@@ -123,6 +124,19 @@ export function createApp() {
             status: "end",
             toolName: event.toolName,
           });
+        } else if (event.type === "message_end") {
+          // Detect-and-log backstop for AGENTS.md's prompt-only Boundaries &
+          // Safety rules (Issue #43/#44 follow-up): the text has already
+          // streamed to the client by the time the full message is
+          // assembled, so this can't redact it — it flags the leak for
+          // operator review rather than silently letting it go unnoticed.
+          const text = extractAssistantText(event.message);
+          const scan = scanAssistantOutput(text);
+          if (scan.flagged) {
+            logBoundaryDisclosure(
+              `Possible internals-disclosure phrase(s) [${scan.matchedPatterns.join(", ")}] in assistant response: ${text}`
+            );
+          }
         }
       });
 
