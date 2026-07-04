@@ -5,6 +5,7 @@
 
 import { describe, it, beforeEach, afterEach, before, after } from 'node:test';
 import assert from 'node:assert';
+import { DatabaseSync } from 'node:sqlite';
 import { rmSync, existsSync, mkdtempSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -93,6 +94,46 @@ describe('Ledger Core Tests', () => {
       assert.strictEqual(accounts1.length, 5);
       assert.strictEqual(accounts2.length, 5);
       closeLedger(ledger2);
+    });
+
+    it('should add transactions.source_path to a pre-existing DB file that predates that column (regression: CREATE TABLE IF NOT EXISTS silently no-ops on already-existing tables)', () => {
+      const dbPath = join(tmpDir, 'stale-schema.db');
+
+      // Simulate a database created before `source_path` existed in SCHEMA_SQL.
+      const staleDb = new DatabaseSync(dbPath);
+      staleDb.exec(`
+        CREATE TABLE transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          date TEXT NOT NULL,
+          description TEXT,
+          created_at INTEGER NOT NULL
+        );
+      `);
+      staleDb.close();
+
+      // openLedger must migrate the existing table in place, not just skip it.
+      const migratedLedger = openLedger(dbPath);
+      const columns = migratedLedger.db.prepare('PRAGMA table_info(transactions)').all() as Array<{ name: string }>;
+      assert.ok(
+        columns.some((c) => c.name === 'source_path'),
+        `expected transactions.source_path to be added by migration, got columns: ${columns.map((c) => c.name).join(', ')}`
+      );
+
+      // And the column must actually be usable (not just present but broken).
+      const account = createAccount(migratedLedger, { name: 'Assets:Checking' });
+      const offsetAccount = createAccount(migratedLedger, { name: 'Expenses:Uncategorized' });
+      const result = postTransaction(migratedLedger, {
+        date: '2026-01-01',
+        description: 'test',
+        sourcePath: 'data/inbox/test.csv',
+        splits: [
+          { account: account.id, amount: 100 },
+          { account: offsetAccount.id, amount: -100 },
+        ],
+      });
+      assert.ok(result.transactionId);
+
+      closeLedger(migratedLedger);
     });
   });
 

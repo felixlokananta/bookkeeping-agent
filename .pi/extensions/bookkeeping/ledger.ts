@@ -82,10 +82,30 @@ export function openLedger(dbPath?: string): Ledger {
   // Run schema (idempotent)
   db.exec(SCHEMA_SQL);
 
+  // CREATE TABLE IF NOT EXISTS only covers brand-new databases — a table
+  // that already existed before a column was added to SCHEMA_SQL (e.g.
+  // `transactions.source_path`, added for receipt attribution after some
+  // databases already had a `transactions` table) silently keeps its old
+  // shape forever, since the CREATE is a no-op. Add any such columns here.
+  migrateSchema(db);
+
   // Seed default chart
   seedDefaultChart({ db });
 
   return { db };
+}
+
+const COLUMN_MIGRATIONS: Array<{ table: string; column: string; ddl: string }> = [
+  { table: 'transactions', column: 'source_path', ddl: 'ALTER TABLE transactions ADD COLUMN source_path TEXT' },
+];
+
+function migrateSchema(db: DatabaseSync): void {
+  for (const { table, column, ddl } of COLUMN_MIGRATIONS) {
+    const existingColumns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!existingColumns.some((c) => c.name === column)) {
+      db.exec(ddl);
+    }
+  }
 }
 
 /**

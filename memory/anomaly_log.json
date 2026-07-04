@@ -1150,5 +1150,17 @@
     "detail": "Transaction blocked: total debits 600 exceed auto-post limit 500",
     "magnitudeMinor": 60000,
     "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-02T22:51:19.075Z",
+    "kind": "above_threshold",
+    "detail": "Transaction blocked: total debits 5000 exceed auto-post limit 500",
+    "magnitudeMinor": 500000,
+    "limitMinor": 50000
+  },
+  {
+    "ts": "2026-07-03T06:08:57.438Z",
+    "kind": "unknown_account",
+    "detail": "Unknown account: Expenses:Software"
   }
 ]

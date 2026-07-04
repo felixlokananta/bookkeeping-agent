@@ -189,8 +189,31 @@ export default function (pi: ExtensionAPI) {
         `Imported ${imported.length} row(s), skipped ${skippedDuplicates.length} likely duplicate(s), ` +
         `${errors.length} error(s) out of ${rows.length} row(s).`;
 
+      // The model only ever sees `content`, never `details` (the pi-ai
+      // provider layer converts a toolResult message's `content` blocks for
+      // the API call and drops everything else) — so per-row reasons must be
+      // spelled out here too, or the model has no way to tell "Account not
+      // found: Assets:Checking" apart from a real file/format problem and
+      // ends up guessing (and hallucinating a wrong diagnosis for the user).
+      const errorDetail =
+        errors.length > 0
+          ? '\n\nErrors:\n' + errors.map((e) => `  Row ${e.row}: ${e.reason}`).join('\n')
+          : '';
+      const duplicateDetail =
+        skippedDuplicates.length > 0
+          ? '\n\nSkipped likely duplicates:\n' +
+            skippedDuplicates
+              .map(
+                (d) =>
+                  `  Row ${d.row}: matches existing transaction ${d.transactionId} (${d.date}, ${
+                    d.description ?? '(no description)'
+                  })`
+              )
+              .join('\n')
+          : '';
+
       return {
-        content: [{ type: 'text', text: text_summary }],
+        content: [{ type: 'text', text: text_summary + errorDetail + duplicateDetail }],
         details: { imported, skipped_duplicates: skippedDuplicates, errors },
       };
     },

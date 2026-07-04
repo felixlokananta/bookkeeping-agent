@@ -109,6 +109,39 @@ describe("web_server", () => {
     assert.strictEqual(followUp.status, 200);
   });
 
+  it("session extensions are bound so ledger tools actually work (regression: createAgentSession() alone does not fire session_start)", async () => {
+    // createAgentSession() constructs the AgentSession but does not call
+    // bindExtensions() itself -- only bindExtensions() emits session_start,
+    // which is what each extension's session_start handler uses to open the
+    // ledger. Without an explicit session.bindExtensions() call (as
+    // chatSession.ts now does), `ledger` stays null in every extension and
+    // every ledger tool call throws "Ledger not initialized", even though
+    // getActiveToolNames() still lists the tools (registration happens at
+    // extension load time, independent of session_start).
+    const session = await getChatSession();
+    const registered = session.extensionRunner.getAllRegisteredTools();
+    const listAccountsTool = registered.find((t) => t.definition.name === "list_accounts");
+    assert.ok(listAccountsTool, "list_accounts tool should be registered");
+
+    const result: any = await listAccountsTool!.definition.execute(
+      "test-call-id",
+      {},
+      undefined,
+      undefined,
+      {} as any
+    );
+
+    const text = result.content?.[0]?.text ?? "";
+    assert.ok(
+      !/Ledger not initialized/.test(text),
+      `list_accounts should succeed once extensions are bound, got: ${text}`
+    );
+    assert.ok(
+      Array.isArray(result.details?.accounts) && result.details.accounts.length >= 5,
+      "should return the seeded default chart of accounts"
+    );
+  });
+
   it("session tools exclude bash/read/edit/write and include ledger tools", async () => {
     const session = await getChatSession();
     // Get active tool names
